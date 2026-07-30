@@ -1,8 +1,8 @@
-#include <mitsuba/render/manifold_ms.h>
+#include <mitsuba/render/flow_manifold_ms.h>
 #include <mitsuba/render/microfacet.h>
 #include <mitsuba/render/scene.h>
 #include <mitsuba/render/sampler.h>
-// #include <mitsuba/render/torch_bridge/torch_bridge.h>
+#include <mitsuba/render/torch_bridge/torch_bridge.h>
 #include <iomanip>
 
 NAMESPACE_BEGIN(mitsuba)
@@ -12,22 +12,34 @@ inline void update_max(std::atomic<T> & atom, const T val) {
   for(T atom_val=atom; atom_val < val && !atom.compare_exchange_weak(atom_val, val, std::memory_order_relaxed););
 }
 
-MTS_VARIANT std::atomic<int> SpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_failed(0);
-MTS_VARIANT std::atomic<int> SpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_succeeded(0);
-MTS_VARIANT std::atomic<int> SpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_calls(0);
-MTS_VARIANT std::atomic<int> SpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations(0);
-MTS_VARIANT std::atomic<int> SpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations_max(0);
+MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_failed(0);
+MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_succeeded(0);
+MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_calls(0);
+MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations(0);
+MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations_max(0);
 
 MTS_VARIANT void
-SpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
                                                     const SMSConfig &config) {
     m_scene = scene;
     m_config = config;
     // torch_sanity_check();
+
+    // std::cout<<"aaaaa"<<std::endl;
+    auto shapes = m_scene->caustic_casters_multi_scatter();
+    for (size_t shape_idx = 0; shape_idx < shapes.size(); ++shape_idx) {
+        const ShapePtr specular_shape = shapes[shape_idx];
+        // auto w = FlowModelBridge::instance();
+        // std::cout<<&w<<std::endl;
+        // std::cout<<"[flow_manifold_ms] Loading flow model for shape " << shape_idx << ": " << specular_shape->flow_model_path() << std::endl;
+        if (!specular_shape->flow_model_path().empty()) {
+            torch_test_model(specular_shape->flow_model_path().c_str());
+        }
+    }
 }
 
 MTS_VARIANT Spectrum
-SpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(const SurfaceInteraction3f &si,
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(const SurfaceInteraction3f &si,
                                                                           ref<Sampler> sampler) {
     ScopedPhase scope_phase(ProfilerPhase::SMSCaustics);
 
@@ -202,8 +214,8 @@ SpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(const 
     return result;
 }
 
-MTS_VARIANT typename SpecularManifoldMultiScatter<Float, Spectrum>::Mask
-SpecularManifoldMultiScatter<Float, Spectrum>::sample_path(const ShapePtr shape,
+MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::sample_path(const ShapePtr shape,
                                                            const SurfaceInteraction3f &si,
                                                            const EmitterInteraction &ei,
                                                            ref<Sampler> sampler,
@@ -229,7 +241,7 @@ SpecularManifoldMultiScatter<Float, Spectrum>::sample_path(const ShapePtr shape,
 }
 
 MTS_VARIANT Spectrum
-SpecularManifoldMultiScatter<Float, Spectrum>::evaluate_path_contribution(const SurfaceInteraction3f &si,
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::evaluate_path_contribution(const SurfaceInteraction3f &si,
                                                                           const EmitterInteraction &ei_) {
     ManifoldVertex &vtx_last = m_current_path[m_current_path.size() - 1];
 
@@ -279,12 +291,12 @@ SpecularManifoldMultiScatter<Float, Spectrum>::evaluate_path_contribution(const 
     return path_throughput;
 }
 
-MTS_VARIANT typename SpecularManifoldMultiScatter<Float, Spectrum>::Mask
-SpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const ShapePtr shape,
-                                                                const SurfaceInteraction3f &si_,
-                                                                const EmitterInteraction &ei,
-                                                                ref<Sampler> sampler,
-                                                                bool first_path,
+MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const ShapePtr shape,
+                                                                    const SurfaceInteraction3f &si_,
+                                                                    const EmitterInteraction &ei,
+                                                                    ref<Sampler> sampler,
+                                                                    bool first_path,
                                                                 const Point3f &p_start) {
     m_current_path.clear();
     if (first_path) {
@@ -409,9 +421,9 @@ SpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const ShapePtr s
     return true;
 }
 
-MTS_VARIANT typename SpecularManifoldMultiScatter<Float, Spectrum>::Mask
-SpecularManifoldMultiScatter<Float, Spectrum>::newton_solver(const SurfaceInteraction3f &si,
-                                                             const EmitterInteraction &ei) {
+MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::newton_solver(const SurfaceInteraction3f &si,
+                                                                 const EmitterInteraction &ei) {
     // Newton iterations..
     bool success = false;
     size_t iterations = 0;
@@ -499,9 +511,9 @@ SpecularManifoldMultiScatter<Float, Spectrum>::newton_solver(const SurfaceIntera
     return true;
 }
 
-MTS_VARIANT typename SpecularManifoldMultiScatter<Float, Spectrum>::Mask
-SpecularManifoldMultiScatter<Float, Spectrum>::compute_step_halfvector(const Point3f &x0,
-                                                                       const EmitterInteraction &ei) {
+MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_halfvector(const Point3f &x0,
+                                                                           const EmitterInteraction &ei) {
     std::vector<ManifoldVertex> &v = m_current_path;
 
     size_t k = v.size();
@@ -630,8 +642,8 @@ SpecularManifoldMultiScatter<Float, Spectrum>::compute_step_halfvector(const Poi
     return true;
 }
 
-MTS_VARIANT typename SpecularManifoldMultiScatter<Float, Spectrum>::Mask
-SpecularManifoldMultiScatter<Float, Spectrum>::compute_step_anglediff(const Point3f &x0,
+MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_anglediff(const Point3f &x0,
                                                                       const EmitterInteraction &ei) {
     std::vector<ManifoldVertex> &v = m_current_path;
     bool success = true;
@@ -858,8 +870,8 @@ SpecularManifoldMultiScatter<Float, Spectrum>::compute_step_anglediff(const Poin
     return true;
 }
 
-MTS_VARIANT typename SpecularManifoldMultiScatter<Float, Spectrum>::Mask
-SpecularManifoldMultiScatter<Float, Spectrum>::reproject(const SurfaceInteraction3f &si_) {
+MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::reproject(const SurfaceInteraction3f &si_) {
     m_proposed_path.clear();
     SurfaceInteraction3f si(si_);
 
@@ -920,7 +932,7 @@ SpecularManifoldMultiScatter<Float, Spectrum>::reproject(const SurfaceInteractio
 }
 
 MTS_VARIANT Spectrum
-SpecularManifoldMultiScatter<Float, Spectrum>::specular_reflectance(const SurfaceInteraction3f &si_,
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_reflectance(const SurfaceInteraction3f &si_,
                                                                     const EmitterInteraction &ei) const {
     if (m_current_path.size() == 0) return 0.f;
 
@@ -1025,7 +1037,7 @@ SpecularManifoldMultiScatter<Float, Spectrum>::specular_reflectance(const Surfac
 }
 
 MTS_VARIANT Float
-SpecularManifoldMultiScatter<Float, Spectrum>::geometric_term(const ManifoldVertex &vx,
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::geometric_term(const ManifoldVertex &vx,
                                                               const ManifoldVertex &vy) {
     // First assemble full path, including all endpoints (use m_proposed_path as buffer here)
     m_proposed_path.clear();
@@ -1191,8 +1203,8 @@ SpecularManifoldMultiScatter<Float, Spectrum>::geometric_term(const ManifoldVert
     }
 }
 
-MTS_VARIANT typename SpecularManifoldMultiScatter<Float, Spectrum>::Mask
-SpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_step(std::vector<ManifoldVertex> &v) {
+MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_step(std::vector<ManifoldVertex> &v) {
     // Solve block tri-diagonal linear system with full RHS vector
 
     // From "The Natural-Constraint Representation of the Path Space for Efficient Light Transport Simulation"
@@ -1234,7 +1246,7 @@ SpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_step(std::vect
 }
 
 MTS_VARIANT Float
-SpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_geo(std::vector<ManifoldVertex> &v) {
+FlowSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_geo(std::vector<ManifoldVertex> &v) {
     // Solve block tri-diagonal linear system with RHS vector where only last element in non-zero
 
     // Procedure as outlined in original "Manifold Exploration" by Jakob and Marschner 2012.
@@ -1269,7 +1281,7 @@ SpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_geo(std::vecto
     return abs(det(-v[0].inv_lambda));
 }
 
-MTS_VARIANT void SpecularManifoldMultiScatter<Float, Spectrum>::print_statistics() {
+MTS_VARIANT void FlowSpecularManifoldMultiScatter<Float, Spectrum>::print_statistics() {
     Float solver_success_ratio = Float(stats_solver_succeeded) / (stats_solver_succeeded + stats_solver_failed),
           solver_fail_ratio    = Float(stats_solver_failed)    / (stats_solver_succeeded + stats_solver_failed);
 
@@ -1295,5 +1307,5 @@ MTS_VARIANT void SpecularManifoldMultiScatter<Float, Spectrum>::print_statistics
     std::cout << std::endl;
 }
 
-MTS_INSTANTIATE_CLASS(SpecularManifoldMultiScatter)
+MTS_INSTANTIATE_CLASS(FlowSpecularManifoldMultiScatter)
 NAMESPACE_END(mitsuba)

@@ -1,15 +1,34 @@
 #pragma once
+#include <string>
 #if defined(_WIN32)
   #define FM_BRIDGE_API __declspec(dllexport)
 #else
   #define FM_BRIDGE_API __attribute__((visibility("default")))
 #endif
 
+// 用純 C++ 陣列/vector 傳資料,完全不暴露 torch::Tensor 這個型別給外部
+class FM_BRIDGE_API FlowModelBridge {
+public:
+    static FlowModelBridge& instance(const char* path);
+
+    void step(const float* xt, const float* c,
+                            float t_start, float t_end,
+                            float* out_xt);
+        ~FlowModelBridge();
+private:
+    FlowModelBridge(const char* path);
+    struct Impl;              // Pimpl:把 torch::jit::script::Module 藏在這裡
+    Impl* m_impl;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void torch_sanity_check(void);
+
+void torch_load_model(const char* path);
+void torch_test_model(const char* path);
 
 #ifdef __cplusplus
 }

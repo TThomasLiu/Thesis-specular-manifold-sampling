@@ -15,11 +15,11 @@ def run_cmd(command, name):
 
 # 5 min for all methods that we want to compare
 # timeout = 5*60
-timeout = 1
+timeout = 5
 
-crop_s = 1080
-crop_x = 420
-crop_y = 0
+crop_s = 256
+crop_x = 128
+crop_y = 128
 
 name = "slab_pt"
 cmd = "mitsuba "
@@ -72,6 +72,19 @@ cmd += "-Dbiased_mnee=true "
 name = "slab_sms_ub"
 cmd = "mitsuba "
 cmd += "slab_sms.xml "
+cmd += "-o results/{}.exr ".format(name)
+cmd += "-Dspp=999999999 "
+cmd += "-Dsamples_per_pass=1 "
+cmd += "-Dtimeout={} ".format(timeout)
+cmd += "-Dcrop_offset_x={} ".format(crop_x)
+cmd += "-Dcrop_offset_y={} ".format(crop_y)
+cmd += "-Dcrop_width={} ".format(crop_s)
+cmd += "-Dcrop_height={} ".format(crop_s)
+# run_cmd(cmd, name)
+
+name = "slab_flow_sms_ub"
+cmd = "mitsuba "
+cmd += "slab_flow_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
 cmd += "-Dspp=999999999 "
 cmd += "-Dsamples_per_pass=1 "

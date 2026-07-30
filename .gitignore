@@ -100,3 +100,4 @@ results/Figure_19_GlintsComparison/textures/normalmap_brushed.exr
 results/Figure_19_GlintsComparison/textures/normalmap_brushed_yan.exr
 *.flakes
 *.grid
+*.pt
