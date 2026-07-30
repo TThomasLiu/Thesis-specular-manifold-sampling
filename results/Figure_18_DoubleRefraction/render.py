@@ -14,7 +14,8 @@ def run_cmd(command, name):
         file.write(log_str)
 
 # 5 min for all methods that we want to compare
-timeout = 5*60
+# timeout = 5*60
+timeout = 1
 
 crop_s = 1080
 crop_x = 420
@@ -31,7 +32,7 @@ cmd += "-Dcrop_offset_x={} ".format(crop_x)
 cmd += "-Dcrop_offset_y={} ".format(crop_y)
 cmd += "-Dcrop_width={} ".format(crop_s)
 cmd += "-Dcrop_height={} ".format(crop_s)
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 
 name = "slab_mnee"
 cmd = "mitsuba "
@@ -48,7 +49,7 @@ cmd += "-Dcaustics_biased=true "
 cmd += "-Dcaustics_halfvector_constraints=true "
 cmd += "-Dcaustics_mnee_init=true "
 cmd += "-Dcaustics_max_trials=1 "
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 
 name = "slab_mnee_biased"
 cmd = "mitsuba "
@@ -66,7 +67,7 @@ cmd += "-Dcaustics_halfvector_constraints=true "
 cmd += "-Dcaustics_mnee_init=true "
 cmd += "-Dcaustics_max_trials=1 "
 cmd += "-Dbiased_mnee=true "
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 
 name = "slab_sms_ub"
 cmd = "mitsuba "
@@ -95,6 +96,6 @@ for M in [1, 2, 4, 8]:
     cmd += "-Dcrop_height={} ".format(crop_s)
     cmd += "-Dcaustics_biased=true "
     cmd += "-Dcaustics_max_trials={} ".format(M)
-    run_cmd(cmd, name)
+    # run_cmd(cmd, name)
 
 print("done.")

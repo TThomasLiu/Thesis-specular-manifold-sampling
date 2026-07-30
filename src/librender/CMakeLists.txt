@@ -68,6 +68,7 @@ add_library(mitsuba-render-obj OBJECT
                                   ${INC_DIR}/manifold.h
   manifold_ss.cpp                 ${INC_DIR}/manifold_ss.h
   manifold_ms.cpp                 ${INC_DIR}/manifold_ms.h
+                                  ${INC_DIR}/torch_bridge/torch_bridge.h
   manifold_glints.cpp             ${INC_DIR}/manifold_glints.h
   manifold_glints_vectorized.cpp  ${INC_DIR}/manifold_glints_vectorized.h
 
@@ -115,6 +116,9 @@ add_dist(mitsuba-render)
 if (MTS_ENABLE_PYTHON)
   add_subdirectory(python)
 endif()
+
+add_subdirectory(torch_bridge)
+target_link_libraries(mitsuba-render PUBLIC fm_torch_bridge)
 
 # Register the test directory
 add_tests(${CMAKE_CURRENT_SOURCE_DIR}/tests)
