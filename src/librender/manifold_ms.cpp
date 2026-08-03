@@ -2,7 +2,6 @@
 #include <mitsuba/render/microfacet.h>
 #include <mitsuba/render/scene.h>
 #include <mitsuba/render/sampler.h>
-// #include <mitsuba/render/torch_bridge/torch_bridge.h>
 #include <iomanip>
 
 NAMESPACE_BEGIN(mitsuba)
@@ -23,7 +22,6 @@ SpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
                                                     const SMSConfig &config) {
     m_scene = scene;
     m_config = config;
-    // torch_sanity_check();
 }
 
 MTS_VARIANT Spectrum

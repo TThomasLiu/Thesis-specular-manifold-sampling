@@ -59,6 +59,8 @@ void FlowModelBridge::step(const float* xt, const float* c,
 
     auto result = m_impl->model.get_method("step")(
         {x_t_tensor, c_tensor, t0, t1}).toTensor();
+    auto result = m_impl->model.get_method("step")(
+        {x_t_tensor, c_tensor, t0, t1}).toTensor();
 
     auto result_cpu = result.to(torch::kCPU).contiguous();
     const float* ptr = result_cpu.data_ptr<float>();
@@ -91,13 +93,13 @@ FM_BRIDGE_API void torch_load_model(const char* path){
 
 FM_BRIDGE_API void torch_test_model(const char* path){
     auto &w = FlowModelBridge::instance(path);
-    float x_t[2] = {0.1f, -0.2f};
+    float xt[2] = {0.1f, -0.2f};
     float c[6]   = {0.5f, 0.3f, -0.1f,   // x_s
                      0.0f, 0.2f,  0.4f}; // x_l
     float t_start = 0.0f, t_end = 0.5f;
     float out[2];
 
-    w.step(x_t, c, t_start, t_end, out);
+    w.step(xt, c, t_start, t_end, out);
     // std::cout << std::fixed << std::setprecision(8);
     // std::cout << "[torch_test_flow_step] output = ("
     //         << out[0] << ", " << out[1] << ")" << std::endl;

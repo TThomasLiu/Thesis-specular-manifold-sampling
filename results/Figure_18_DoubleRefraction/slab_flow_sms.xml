@@ -97,14 +97,14 @@
     </shape>
 
     <film type="hdrfilm" id="film">
-            <integer name="width" value="512"/>
-            <integer name="height" value="512"/>
+            <integer name="width" value="256"/>
+            <integer name="height" value="256"/>
             <rfilter type="gaussian"/>
 
-            <integer name="crop_offset_x" value="$crop_offset_x"/>
+            <!-- <integer name="crop_offset_x" value="$crop_offset_x"/>
             <integer name="crop_offset_y" value="$crop_offset_y"/>
             <integer name="crop_width" value="$crop_width"/>
-            <integer name="crop_height" value="$crop_height"/>
+            <integer name="crop_height" value="$crop_height"/> -->
         </film>
     <sampler type="independent" id="sampler">
         <integer name="sample_count" value="$spp" />
