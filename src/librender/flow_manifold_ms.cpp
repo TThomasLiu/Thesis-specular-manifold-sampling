@@ -32,9 +32,9 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
         // auto w = FlowModelBridge::instance();
         // std::cout<<&w<<std::endl;
         // std::cout<<"[flow_manifold_ms] Loading flow model for shape " << shape_idx << ": " << specular_shape->flow_model_path() << std::endl;
-        if (!specular_shape->flow_model_path().empty()) {
-            torch_test_model(specular_shape->flow_model_path().c_str());
-        }
+        // if (!specular_shape->flow_model_path().empty()) {
+        //     torch_test_model(specular_shape->flow_model_path().c_str());
+        // }
     }
 }
 

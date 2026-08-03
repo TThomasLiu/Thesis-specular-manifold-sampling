@@ -59,8 +59,6 @@ void FlowModelBridge::step(const float* xt, const float* c,
 
     auto result = m_impl->model.get_method("step")(
         {x_t_tensor, c_tensor, t0, t1}).toTensor();
-    auto result = m_impl->model.get_method("step")(
-        {x_t_tensor, c_tensor, t0, t1}).toTensor();
 
     auto result_cpu = result.to(torch::kCPU).contiguous();
     const float* ptr = result_cpu.data_ptr<float>();

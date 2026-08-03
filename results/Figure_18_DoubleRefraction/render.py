@@ -83,7 +83,7 @@ cmd += "-Dcaustics_biased=false "
 cmd += "-Dcaustics_max_trials={} ".format(8)
 cmd += "-Dcrop_width={} ".format(crop_s)
 cmd += "-Dcrop_height={} ".format(crop_s)
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 
 name = "slab_flow_sms_test"
 cmd = "mitsuba "
@@ -99,7 +99,7 @@ cmd += "-Dcaustics_biased=true "
 cmd += "-Dcaustics_max_trials={} ".format(8)
 cmd += "-Dcrop_width={} ".format(crop_s)
 cmd += "-Dcrop_height={} ".format(crop_s)
-# run_cmd(cmd, name)
+run_cmd(cmd, name)
 
 for M in [1, 2, 4, 8]:
     name = "slab_sms_b{:02d}".format(M)

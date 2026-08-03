@@ -6,6 +6,7 @@
 #include <mitsuba/render/emitter.h>
 #include <mitsuba/render/integrator.h>
 #include <mitsuba/render/records.h>
+#include <enoki/morton.h>
 
 #include <mitsuba/render/flow_manifold_ms.h>
 
@@ -37,12 +38,13 @@ NAMESPACE_BEGIN(mitsuba)
  *
  */
 template <typename Float, typename Spectrum>
-class MultiScatterSMSPathIntegrator : public MonteCarloIntegrator<Float, Spectrum> {
+class FlowMultiScatterSMSPathIntegrator : public MonteCarloIntegrator<Float, Spectrum> {
 public:
-    MTS_IMPORT_BASE(MonteCarloIntegrator, m_max_depth, m_rr_depth)
-    MTS_IMPORT_TYPES(Scene, Sampler, Sensor, Emitter, EmitterPtr, BSDF, BSDFPtr, ShapePtr, Medium)
+    MTS_IMPORT_BASE(MonteCarloIntegrator, m_max_depth, m_rr_depth, m_block_size, m_samples_per_pass, m_timeout, m_hide_emitters, m_glint_diff_scale_factor_clamp, should_stop, m_render_timer)
+    MTS_IMPORT_TYPES(Scene, Sampler, Sensor, Emitter, EmitterPtr, BSDF, BSDFPtr, ShapePtr, Medium, ImageBlock)
     using SpecularManifold = SpecularManifold<Float, Spectrum>;
     using FlowSpecularManifoldMultiScatter = FlowSpecularManifoldMultiScatter<Float, Spectrum>;
+    using MonteCarloIntegrator = MonteCarloIntegrator<Float, Spectrum>;
 
 protected:
     /* The integration of SMS is pretty straight forward in the multi-bounce
@@ -146,7 +148,7 @@ protected:
     static inline ThreadLocal<MNEEHelper> tl_mnee{};
 
 public:
-    MultiScatterSMSPathIntegrator(const Properties &props) : Base(props) {
+    FlowMultiScatterSMSPathIntegrator(const Properties &props) : Base(props) {
         m_sms_config = SMSConfig();
         m_sms_config.biased                 = props.bool_("biased", false);
         m_sms_config.twostage               = props.bool_("twostage", false);
@@ -164,7 +166,7 @@ public:
     }
 
     bool render(Scene *scene, Sensor *sensor) override {
-        bool result = MonteCarloIntegrator<Float, Spectrum>::render(scene, sensor);
+        bool result = MonteCarloIntegrator::render(scene, sensor);
         FlowSpecularManifoldMultiScatter::print_statistics();
         return result;
     }
@@ -374,7 +376,7 @@ public:
     // =============================================================
 
     std::string to_string() const override {
-        return tfm::format("MultiScatterSMSPathIntegrator[\n"
+        return tfm::format("FlowMultiScatterSMSPathIntegrator[\n"
             "  max_depth = %i,\n"
             "  rr_depth = %i\n"
             "]", m_max_depth, m_rr_depth);
@@ -390,8 +392,59 @@ public:
 protected:
     SMSConfig m_sms_config;
     bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
+
+    void render_block(const Scene *scene,
+        const Sensor *sensor,
+        Sampler *sampler,
+        ImageBlock *block,
+        Float *aovs,
+        size_t sample_count_ = size_t(-1)
+    ) const override {
+        block->clear();
+        uint32_t pixel_count  = (uint32_t)(m_block_size * m_block_size),
+                sample_count = (uint32_t)(sample_count_ == (size_t) -1
+                                            ? sampler->sample_count()
+                                            : sample_count_);
+
+        ScalarFloat diff_scale_factor = rsqrt((ScalarFloat) sampler->sample_count());
+
+        diff_scale_factor = max(diff_scale_factor, m_glint_diff_scale_factor_clamp);
+
+        if constexpr (!is_array_v<Float>) {
+            std::cout<<"a"<<std::endl;
+            for (uint32_t i = 0; i < pixel_count && !should_stop(); ++i) {
+                ScalarPoint2u pos = enoki::morton_decode<ScalarPoint2u>(i);
+                if (any(pos >= block->size()))
+                    continue;
+
+                pos += block->offset();
+                for (uint32_t j = 0; j < sample_count && !should_stop(); ++j) {
+                    MonteCarloIntegrator::render_sample(scene, sensor, sampler, block, aovs,
+                                pos, diff_scale_factor);
+                }
+            }
+        } else if constexpr (is_array_v<Float> && !is_cuda_array_v<Float>) {
+            std::cout<<"b"<<std::endl;
+            for (auto [index, active] : range<UInt32>(pixel_count * sample_count)) {
+                if (should_stop())
+                    break;
+                Point2u pos = enoki::morton_decode<Point2u>(index / UInt32(sample_count));
+                active &= !any(pos >= block->size());
+                pos += block->offset();
+                MonteCarloIntegrator::render_sample(scene, sensor, sampler, block, aovs, pos, diff_scale_factor, active);
+            }
+        } else {
+            ENOKI_MARK_USED(scene);
+            ENOKI_MARK_USED(sensor);
+            ENOKI_MARK_USED(aovs);
+            ENOKI_MARK_USED(diff_scale_factor);
+            ENOKI_MARK_USED(pixel_count);
+            ENOKI_MARK_USED(sample_count);
+            Throw("Not implemented for CUDA arrays.");
+        }
+    }
 };
 
-MTS_IMPLEMENT_CLASS_VARIANT(MultiScatterSMSPathIntegrator, MonteCarloIntegrator)
-MTS_EXPORT_PLUGIN(MultiScatterSMSPathIntegrator, "Multi-Bounce SMS Path Tracer integrator");
+MTS_IMPLEMENT_CLASS_VARIANT(FlowMultiScatterSMSPathIntegrator, MonteCarloIntegrator)
+MTS_EXPORT_PLUGIN(FlowMultiScatterSMSPathIntegrator, "Flow Multi-Bounce SMS Path Tracer integrator");
 NAMESPACE_END(mitsuba)
