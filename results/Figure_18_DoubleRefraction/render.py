@@ -20,6 +20,7 @@ timeout = 5
 crop_s = 1080
 crop_x = 420
 crop_y = 0
+block_size = 64
 
 name = "slab_pt"
 cmd = "mitsuba "
@@ -99,6 +100,7 @@ cmd += "-Dcaustics_biased=true "
 cmd += "-Dcaustics_max_trials={} ".format(8)
 cmd += "-Dcrop_width={} ".format(crop_s)
 cmd += "-Dcrop_height={} ".format(crop_s)
+cmd += "-Dblock_size={} ".format(block_size)
 run_cmd(cmd, name)
 
 for M in [1, 2, 4, 8]:

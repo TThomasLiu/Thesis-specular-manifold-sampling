@@ -8,6 +8,22 @@
 #include <mitsuba/render/records.h>
 #include <enoki/morton.h>
 
+#include <mitsuba/core/progress.h>
+#include <mitsuba/core/profiler.h>
+#include <mitsuba/core/progress.h>
+#include <mitsuba/core/spectrum.h>
+#include <mitsuba/core/timer.h>
+#include <mitsuba/core/util.h>
+#include <mitsuba/core/warp.h>
+#include <mitsuba/render/film.h>
+#include <mitsuba/render/integrator.h>
+#include <mitsuba/render/sampler.h>
+#include <mitsuba/render/sensor.h>
+#include <mitsuba/render/spiral.h>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <mutex>
+
 #include <mitsuba/render/flow_manifold_ms.h>
 
 NAMESPACE_BEGIN(mitsuba)
@@ -41,7 +57,7 @@ template <typename Float, typename Spectrum>
 class FlowMultiScatterSMSPathIntegrator : public MonteCarloIntegrator<Float, Spectrum> {
 public:
     MTS_IMPORT_BASE(MonteCarloIntegrator, m_max_depth, m_rr_depth, m_block_size, m_samples_per_pass, m_timeout, m_hide_emitters, m_glint_diff_scale_factor_clamp, should_stop, m_render_timer)
-    MTS_IMPORT_TYPES(Scene, Sampler, Sensor, Emitter, EmitterPtr, BSDF, BSDFPtr, ShapePtr, Medium, ImageBlock)
+    MTS_IMPORT_TYPES(Scene, Sampler, Sensor, Emitter, EmitterPtr, BSDF, BSDFPtr, ShapePtr, Medium, ImageBlock, Film)
     using SpecularManifold = SpecularManifold<Float, Spectrum>;
     using FlowSpecularManifoldMultiScatter = FlowSpecularManifoldMultiScatter<Float, Spectrum>;
     using MonteCarloIntegrator = MonteCarloIntegrator<Float, Spectrum>;
@@ -166,7 +182,8 @@ public:
     }
 
     bool render(Scene *scene, Sensor *sensor) override {
-        bool result = MonteCarloIntegrator::render(scene, sensor);
+        // bool result = MonteCarloIntegrator::render(scene, sensor);
+        bool result = sequential_block_render(scene, sensor);
         FlowSpecularManifoldMultiScatter::print_statistics();
         return result;
     }
@@ -392,47 +409,82 @@ public:
 protected:
     SMSConfig m_sms_config;
     bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
+    
 
-    void render_block(const Scene *scene,
-        const Sensor *sensor,
+    void parallel_pixel_render_block(
+        int block_id,
+        const Scene *scene,
+        Sensor *sensor,
         Sampler *sampler,
         ImageBlock *block,
         Float *aovs,
         size_t sample_count_ = size_t(-1)
-    ) const override {
+    ) const {
         block->clear();
-        uint32_t pixel_count  = (uint32_t)(m_block_size * m_block_size),
-                sample_count = (uint32_t)(sample_count_ == (size_t) -1
-                                            ? sampler->sample_count()
-                                            : sample_count_);
-
+        uint32_t pixel_count  = (uint32_t)(m_block_size * m_block_size);
+        ThreadEnvironment env;
+        std::mutex mutex;
+        
+        uint32_t sample_count = (uint32_t)(sample_count_ == (size_t) -1
+                ? sampler->sample_count()
+                : sample_count_);
         ScalarFloat diff_scale_factor = rsqrt((ScalarFloat) sampler->sample_count());
-
         diff_scale_factor = max(diff_scale_factor, m_glint_diff_scale_factor_clamp);
 
         if constexpr (!is_array_v<Float>) {
-            std::cout<<"a"<<std::endl;
-            for (uint32_t i = 0; i < pixel_count && !should_stop(); ++i) {
-                ScalarPoint2u pos = enoki::morton_decode<ScalarPoint2u>(i);
-                if (any(pos >= block->size()))
-                    continue;
+            std::cout<<"parallel pixel render block"<<std::endl;
+            tbb::parallel_for(
+                tbb::blocked_range<size_t>(0, pixel_count, 1),
+                [&](const tbb::blocked_range<size_t> &range) {
+                    ScopedSetThreadEnvironment set_env(env);
+                    ref<Sampler> _sampler = sampler->clone();
+                    scoped_flush_denormals flush_denormals(true);
+                    
+                    _sampler->seed(block_id * pixel_count + range.begin());
+                    
 
-                pos += block->offset();
-                for (uint32_t j = 0; j < sample_count && !should_stop(); ++j) {
-                    MonteCarloIntegrator::render_sample(scene, sensor, sampler, block, aovs,
-                                pos, diff_scale_factor);
+                    for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
+                        ScalarPoint2u pos = enoki::morton_decode<ScalarPoint2u>(i);
+                        if (any(pos >= block->size()))
+                            continue;
+
+                        pos += block->offset();
+                        for (uint32_t j = 0; j < sample_count && !should_stop(); ++j) {
+                            MonteCarloIntegrator::render_sample(scene, sensor, _sampler, block, aovs,
+                                        pos, diff_scale_factor);
+                        }
+                    }
                 }
-            }
+            );
+
+            // for (uint32_t i = 0; i < pixel_count && !should_stop(); ++i) {
+            //     ScalarPoint2u pos = enoki::morton_decode<ScalarPoint2u>(i);
+            //     if (any(pos >= block->size()))
+            //         continue;
+
+            //     pos += block->offset();
+            //     for (uint32_t j = 0; j < sample_count && !should_stop(); ++j) {
+            //         MonteCarloIntegrator::render_sample(scene, sensor, sampler, block, aovs,
+            //                     pos, diff_scale_factor);
+            //     }
+            // }
         } else if constexpr (is_array_v<Float> && !is_cuda_array_v<Float>) {
-            std::cout<<"b"<<std::endl;
-            for (auto [index, active] : range<UInt32>(pixel_count * sample_count)) {
-                if (should_stop())
-                    break;
-                Point2u pos = enoki::morton_decode<Point2u>(index / UInt32(sample_count));
-                active &= !any(pos >= block->size());
-                pos += block->offset();
-                MonteCarloIntegrator::render_sample(scene, sensor, sampler, block, aovs, pos, diff_scale_factor, active);
-            }
+            ENOKI_MARK_USED(scene);
+            ENOKI_MARK_USED(sensor);
+            ENOKI_MARK_USED(aovs);
+            ENOKI_MARK_USED(diff_scale_factor);
+            ENOKI_MARK_USED(pixel_count);
+            ENOKI_MARK_USED(sample_count);
+            Throw("Not implemented for arrays.");
+            
+            // for (auto [index, active] : range<UInt32>(pixel_count * sample_count)) {
+            //     if (should_stop())
+            //         break;
+            //     Point2u pos = enoki::morton_decode<Point2u>(index / UInt32(sample_count));
+            //     active &= !any(pos >= block->size());
+            //     pos += block->offset();
+            //     MonteCarloIntegrator::render_sample(scene, sensor, sampler, block, aovs, pos, diff_scale_factor, active);
+            // }
         } else {
             ENOKI_MARK_USED(scene);
             ENOKI_MARK_USED(sensor);
@@ -442,6 +494,148 @@ protected:
             ENOKI_MARK_USED(sample_count);
             Throw("Not implemented for CUDA arrays.");
         }
+    }
+
+
+    bool sequential_block_render(Scene *scene, Sensor *sensor) {
+        ScopedPhase sp(ProfilerPhase::Render);
+        MonteCarloIntegrator::m_stop = false;
+
+        ref<Film> film = sensor->film();
+        ScalarVector2i film_size = film->crop_size();
+
+        size_t total_spp        = sensor->sampler()->sample_count();
+        size_t samples_per_pass = (m_samples_per_pass == (size_t) -1)
+                                ? total_spp : std::min((size_t) m_samples_per_pass, total_spp);
+        if ((total_spp % samples_per_pass) != 0)
+            Throw("sample_count (%d) must be a multiple of samples_per_pass (%d).",
+                total_spp, samples_per_pass);
+
+        size_t n_passes = (total_spp + samples_per_pass - 1) / samples_per_pass;
+
+        std::vector<std::string> channels = MonteCarloIntegrator::aov_names();
+        bool has_aovs = !channels.empty();
+
+        // Insert default channels and set up the film
+        for (size_t i = 0; i < 5; ++i)
+            channels.insert(channels.begin() + i, std::string(1, "XYZAW"[i]));
+        film->prepare(channels);
+
+        if constexpr (!is_cuda_array_v<Float>) {
+            /// Render on the CPU using a spiral pattern
+            size_t n_threads = __global_thread_count;
+            Log(Info, "Starting render job (%ix%i, %i sample%s,%s %i thread%s)",
+                film_size.x(), film_size.y(),
+                total_spp, total_spp == 1 ? "" : "s",
+                n_passes > 1 ? tfm::format(" %d passes,", n_passes) : "",
+                n_threads, n_threads == 1 ? "" : "s");
+
+            if (m_timeout > 0.f)
+                Log(Info, "Timeout specified: %.2f seconds.", m_timeout);
+
+            // Find a good block size to use for splitting up the total workload.
+            if (m_block_size == 0) {
+                uint32_t block_size = MTS_BLOCK_SIZE;
+                while (true) {
+                    if (block_size == 1 || hprod((film_size + block_size - 1) / block_size) >= n_threads)
+                        break;
+                    block_size /= 2;
+                }
+                m_block_size = block_size;
+            }
+
+            Spiral spiral(film, m_block_size, n_passes);
+
+            // ThreadEnvironment env;
+            ref<ProgressReporter> progress = new ProgressReporter("Rendering");
+            // std::mutex mutex;
+
+            // Total number of blocks to be handled, including multiple passes.
+            size_t total_blocks = spiral.block_count() * n_passes,
+                blocks_done = 0;
+
+            m_render_timer.reset();
+            
+            // Process each block in single thread
+            for(size_t idx = 0; idx < total_blocks && !should_stop(); ++idx) {
+                ref<ImageBlock> block = new ImageBlock(m_block_size, channels.size(),
+                                 film->reconstruction_filter(),
+                                 !has_aovs);
+                scoped_flush_denormals flush_denormals(true);
+                std::unique_ptr<Float[]> aovs(new Float[channels.size()]);
+
+                auto [offset, size, block_id] = spiral.next_block();
+                Assert(hprod(size) != 0);
+                block->set_size(size);
+                block->set_offset(offset);
+
+                // Ensure that the sample generation is fully deterministic
+
+                parallel_pixel_render_block(block_id, scene, sensor, sensor->sampler(), block,
+                            aovs.get(), samples_per_pass);
+
+                film->put(block);
+
+                // report progress
+                blocks_done++;
+                progress->update(blocks_done / (ScalarFloat) total_blocks);
+            }
+
+            // tbb::parallel_for(
+            //     tbb::blocked_range<size_t>(0, total_blocks, 1),
+            //     [&](const tbb::blocked_range<size_t> &range) {
+            //         ScopedSetThreadEnvironment set_env(env);
+            //         ref<Sampler> sampler = sensor->sampler()->clone();
+            //         ref<ImageBlock> block = new ImageBlock(m_block_size, channels.size(),
+            //                                             film->reconstruction_filter(),
+            //                                             !has_aovs);
+            //         scoped_flush_denormals flush_denormals(true);
+            //         std::unique_ptr<Float[]> aovs(new Float[channels.size()]);
+
+            //         // For each block
+                    
+            //         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
+            //             auto [offset, size, block_id] = spiral.next_block();
+            //             Assert(hprod(size) != 0);
+            //             block->set_size(size);
+            //             block->set_offset(offset);
+
+            //             // Ensure that the sample generation is fully deterministic
+            //             sampler->seed(block_id);
+
+            //             render_block(scene, sensor, sampler, block,
+            //                         aovs.get(), samples_per_pass);
+
+            //             film->put(block);
+
+            //             /* Critical section: update progress bar */ {
+            //                 std::lock_guard<std::mutex> lock(mutex);
+            //                 blocks_done++;
+            //                 progress->update(blocks_done / (ScalarFloat) total_blocks);
+            //             }
+            //         }
+            //     }
+            // );
+
+            if (!MonteCarloIntegrator::m_stop) {
+                if (m_timeout > 0) {
+                    Float spp_f = blocks_done;
+                    spp_f /= spiral.block_count();
+                    int spp = int(floor(spp_f));
+
+                    Log(Info, "Rendering finished. Computed %d spp and took %s.",
+                        spp, util::time_string(m_render_timer.value(), true));
+                } else {
+                    Log(Info, "Rendering finished. (took %s)",
+                        util::time_string(m_render_timer.value(), true));
+                }
+            }
+
+        } else {
+            Throw("Not implemented for CUDA arrays.");
+        }
+
+        return !MonteCarloIntegrator::m_stop;
     }
 };
 

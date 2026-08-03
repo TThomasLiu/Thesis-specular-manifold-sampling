@@ -7,6 +7,7 @@
 
     <default name="light_angle" value="0"/>
 
+    <default name="block_size" value="64"/>
     <default name="samples_per_pass" value="4294967295"/>   <!-- == ((size_t) -1) -->
     <default name="timeout" value="-1.0"/>
 
@@ -27,6 +28,7 @@
     <integrator type="path_flow_sms_ms">
         <integer name="max_depth" value="8"/>
         <integer name="samples_per_pass" value="$samples_per_pass"/>
+        <integer name="block_size" value="$block_size"/>
         <float name="timeout" value="$timeout"/>
 
         <boolean name="biased"                  value="$caustics_biased"/>
