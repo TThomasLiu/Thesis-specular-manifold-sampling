@@ -160,6 +160,31 @@ protected:
         }
     };
 
+    struct WaveVariables{
+        // write position
+        Vector2f position_sample;
+        Spectrum ray_weight;
+
+        // sample input
+        ref<Sampler> sampler;
+        RayDifferential3f ray_;
+        RayDifferential3f ray;
+        Mask active = true;
+
+        // wave front variables
+        // FlowSpecularManifoldMultiScatter *mf;
+        // ref<MNEEHelper> mnee;
+        bool specular_camera_path = true; 
+        Float eta = 1.f;
+
+        Spectrum throughput;
+        SurfaceInteraction3f si;
+        
+        // output
+        Spectrum result;
+        Mask valid_ray;
+    };
+
     static inline ThreadLocal<FlowSpecularManifoldMultiScatter> tl_manifold{};
     static inline ThreadLocal<MNEEHelper> tl_mnee{};
 
@@ -410,6 +435,332 @@ protected:
     SMSConfig m_sms_config;
     bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
     
+    // sample
+    void bounce_step(FlowSpecularManifoldMultiScatter & mf, MNEEHelper & mnee, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene) const {
+        if(!variable_set.active){
+            return;
+        }
+        
+        if(depth == 0){
+            variable_set.ray = variable_set.ray_;
+            variable_set.eta = 1.f;
+            variable_set.throughput = 1.f;
+            variable_set.result = 0.f;
+            variable_set.specular_camera_path = true;   // To capture emitters visible direcly through purely specular reflection/refractions
+
+            // ---------------------- First intersection ----------------------
+
+            variable_set.si = scene->ray_intersect(variable_set.ray);
+            variable_set.valid_ray = variable_set.si.is_valid();
+            EmitterPtr emitter = variable_set.si.emitter(scene);
+            // Keep track of state regarding previous bounces in order to do unbiased MNEE
+            mnee.state_transition(variable_set.si);
+
+            if (emitter) {
+                variable_set.result += emitter->eval(variable_set.si);
+            }
+            return;
+        }
+
+        // ------------------ Possibly terminate path -----------------
+
+        if (!variable_set.si.is_valid()){
+            variable_set.active = false;
+            return;
+        }
+        
+        variable_set.si.compute_partials(variable_set.ray);
+
+        if (depth > m_rr_depth) {
+            Float q = min(hmax(depolarize(variable_set.throughput)) * sqr(variable_set.eta), .95f);
+            if (variable_set.sampler->next_1d() > q){
+                variable_set.active = false;
+                return;
+            }
+            variable_set.throughput *= rcp(q);
+        }
+
+        // --------------- Specular Manifold Sampling -----------------
+
+        
+        bool on_caustic_caster = variable_set.si.shape->is_caustic_caster_multi_scatter() ||
+                                    variable_set.si.shape->is_caustic_bouncer();
+
+        if (variable_set.si.shape->is_caustic_receiver() && !on_caustic_caster &&
+            (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)) {
+            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler);
+        }
+
+        // --------------------- Emitter sampling ---------------------
+
+        BSDFContext ctx;
+        ctx.sampler = variable_set.sampler;
+        BSDFPtr bsdf = variable_set.si.bsdf(variable_set.ray);
+
+        /* As usual, emitter sampling only makes sense on Smooth BSDFs
+            that can be evaluated.
+            Additionally, filter out:
+            - paths that we could previously sample with SMS
+            - paths that are even harder to sample, e.g. paths bouncing
+                off several caustic casters before hitting the light.
+            As a result, we only do emitter sampling on non-caustic
+            casters---with the exception of the first bounce where we might
+            see a direct (glossy) reflection of a light source this way.
+
+            Note: of course, SMS might not always be the optimal sampling
+            strategy. For example, when rough surfaces are involved it
+            would be still better to do emitter sampling.
+            A way of incoorporating MIS with all of this would be super
+            useful. */
+            
+        if (has_flag(bsdf->flags(), BSDFFlags::Smooth) &&
+            !on_caustic_caster) {
+            /* In case we didn't scatter off a caustic receiver before
+                or aren't interacting with a caustic caster now, do
+                emitter sampling as usual. */
+            auto [ds, emitter_weight] = scene->sample_emitter_direction(variable_set.si, variable_set.sampler->next_2d(), true);
+            if (ds.pdf != 0.f) {
+                // Query the BSDF for that emitter-sampled direction
+                Vector3f wo = variable_set.si.to_local(ds.d);
+                Spectrum bsdf_val = bsdf->eval(ctx, variable_set.si, wo);
+                bsdf_val = variable_set.si.to_world_mueller(bsdf_val, -wo, variable_set.si.wi);
+
+                // Determine density of sampling that same direction using BSDF sampling
+                Float bsdf_pdf = bsdf->pdf(ctx, variable_set.si, wo);
+                Float mis = select(ds.delta, 1.f, mis_weight(ds.pdf, bsdf_pdf));
+                variable_set.result += mis * variable_set.throughput * bsdf_val * emitter_weight;
+            }
+        }
+
+        // ----------------------- BSDF sampling ----------------------
+
+        // Sample BSDF * cos(theta)
+        auto [bs, bsdf_weight] = bsdf->sample(ctx, variable_set.si, variable_set.sampler->next_1d(),
+                                                variable_set.sampler->next_2d());
+        bsdf_weight = variable_set.si.to_world_mueller(bsdf_weight, -bs.wo, variable_set.si.wi);
+
+        variable_set.throughput = variable_set.throughput * bsdf_weight;
+        variable_set.eta *= bs.eta;
+        if (!has_flag(bs.sampled_type, BSDFFlags::Delta)) {
+            variable_set.specular_camera_path = false;
+        }
+
+        if (all(eq(variable_set.throughput, 0.f))){
+            variable_set.active = false;
+            return;
+        }
+        
+        
+        // Intersect the BSDF ray against the scene geometry
+        variable_set.ray = variable_set.si.spawn_ray(variable_set.si.to_world(bs.wo));
+        SurfaceInteraction3f si_bsdf = scene->ray_intersect(variable_set.ray);
+        EmitterPtr emitter = si_bsdf.emitter(scene);
+
+        // Keep track of state regarding previous bounces in order to do unbiased MNEE
+        mnee.state_transition(si_bsdf);
+        // Hit emitter after BSDF sampling
+        if (emitter) {
+            /* With the same reasoning as in the emitter sampling case,
+                filter out some of the light paths here.
+                Again, this is unfortunately not robust in all cases,
+                for large light sources, BSDF sampling would be more
+                appropriate than relying purely on SMS. */
+            if (!on_caustic_caster || variable_set.specular_camera_path) {
+                /* Only do BSDF sampling in usual way if we don't interact
+                    with a caustic caster now. */
+
+                // Evaluate the emitter for that direction
+                Spectrum emitter_val = emitter->eval(si_bsdf);
+
+                /* Determine probability of having sampled that same
+                    direction using emitter sampling. */
+                DirectionSample3f ds(si_bsdf, variable_set.si);
+                ds.object = emitter;
+                Float emitter_pdf = select(!has_flag(bs.sampled_type, BSDFFlags::Delta),
+                                            scene->pdf_emitter_direction(variable_set.si, ds),
+                                            0.f);
+                Float mis = mis_weight(bs.pdf, emitter_pdf);
+                variable_set.result += mis * variable_set.throughput * emitter_val;
+            } else if (m_sms_config.mnee_init && !m_biased_mnee &&
+                        mnee.is_possible()) {
+                /* These are the light paths that can be sampled with SMS.
+                    In case we're doing MNEE, only a single deterministic path
+                    can be generated though, and if we wish to stay unbiased
+                    we need to do an additional test here to see if MNEE could
+                    generate the currently found light connection as well.
+                    Note: Hanika et al. 2015 discuss a more advanced MIS strategy
+                    here that also accounts for the smooth probablility density
+                    from rough BSDFs. This could be added as well here. To
+                    support the rough case properly, the sampled half-vectors
+                    of specular paths to be tested with MNEE would need to be
+                    passed to the FlowSpecularManifoldMultiScatter datastructure
+                    somehow. */
+
+                ShapePtr specular_shape = mnee.specular_shapes[0];
+                EmitterInteraction ei = SpecularManifold::emitter_interaction(scene, mnee.si_endpoint, si_bsdf);
+                bool success = mf.sample_path(specular_shape, mnee.si_endpoint, ei, variable_set.sampler, true);
+                if (success) {
+                    auto current_path = mf.current_path();
+                    for (size_t k = 0; k < current_path.size(); ++k) {
+                        Point3f p_pt = mnee.specular_positions[k],
+                                p_mnee = current_path[k].p;
+                        if (norm(p_pt - p_mnee) >= 1e-5f) {
+                            success = false;
+                        }
+                    }
+                }
+
+                if (!success) {
+                    /* MNEE could not find this path, so add it now.
+                        There is no MIS needed as we filtered out this class of paths
+                        in the emitter sampling strategy above. Note that the original
+                        paper about MNEE is more thorough here and does full MIS which
+                        improves the case of caustics from rough BSDFs. For simplicity
+                        we leave this out, but it could be added as well. In that
+                        case, we would also need to perform this "MNEE check" in the
+                        emitter sampling step above. */
+                    variable_set.result += variable_set.throughput * emitter->eval(si_bsdf);
+                }
+            }
+        }
+
+        variable_set.si = std::move(si_bsdf);
+
+
+    }
+
+    // sampling loop
+    void sampling_loop(
+        int block_id,
+        const Scene *scene,
+        Sensor *sensor,
+        Sampler *sampler,
+        ImageBlock *block,
+        Float *aovs,
+        size_t sample_count_ = size_t(-1)) const
+    {
+        ThreadEnvironment env;
+        uint32_t pixel_count  = (uint32_t)(m_block_size * m_block_size);
+        uint32_t sample_count = (uint32_t)(sample_count_ == (size_t) -1
+            ? sampler->sample_count()
+            : sample_count_);
+        ScalarFloat diff_scale_factor = rsqrt((ScalarFloat) sampler->sample_count());
+        diff_scale_factor = max(diff_scale_factor, m_glint_diff_scale_factor_clamp);
+
+        // auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
+        // mf.init(scene, m_sms_config);
+        // auto &mnee = (MNEEHelper &)tl_mnee;
+        // mnee.init(scene, m_sms_config);
+
+
+        // sample
+        for(int sample_idx = 0 ; sample_idx < sample_count; sample_idx++){
+            std::vector<WaveVariables> wave_variables(pixel_count);
+            // ray init
+            {
+                tbb::parallel_for(
+                    tbb::blocked_range<size_t>(0, pixel_count, 1),
+                    [&](const tbb::blocked_range<size_t> &range) {
+                        ScopedSetThreadEnvironment set_env(env);
+                        
+                        for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
+                            WaveVariables& variable_set = wave_variables[i];
+                            variable_set.sampler = sampler->clone();
+                            variable_set.sampler->seed(block_id * pixel_count + i);
+                            variable_set.position_sample = enoki::morton_decode<ScalarPoint2u>(i);
+                            
+                            if (any(variable_set.position_sample >= block->size())){
+                                variable_set.active = false;
+                            }
+                            variable_set.position_sample += block->offset();
+                            
+                            // auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
+                            // mf.init(scene, m_sms_config);
+                            // auto &mnee = (MNEEHelper &)tl_mnee;
+                            // mnee.init(scene, m_sms_config);
+                            
+                            
+
+                            // MonteCarloIntegrator::render_sample
+                            {
+                                variable_set.position_sample += sampler->next_2d(variable_set.active);
+
+                                Point2f aperture_sample(.5f);
+                                if (sensor->needs_aperture_sample())
+                                    aperture_sample = sampler->next_2d(variable_set.active);
+
+                                Float time = sensor->shutter_open();
+                                if (sensor->shutter_open_time() > 0.f)
+                                    time += sampler->next_1d(variable_set.active) * sensor->shutter_open_time();
+
+                                Float wavelength_sample = sampler->next_1d(variable_set.active);
+
+                                Vector2f adjusted_position =
+                                    (variable_set.position_sample - sensor->film()->crop_offset()) /
+                                    sensor->film()->crop_size();
+
+                                auto [ray, ray_weight] = sensor->sample_ray_differential(
+                                    time, wavelength_sample, adjusted_position, aperture_sample);
+
+                                ray.scale_differential(diff_scale_factor);
+
+                                variable_set.ray_ = ray;
+                                variable_set.ray_weight = ray_weight;
+                            }
+                        }
+                    }
+                );
+            }
+            
+            // depth loop
+            for(int depth = 0; depth < m_max_depth; depth++){
+                tbb::parallel_for(
+                    tbb::blocked_range<size_t>(0, pixel_count, 1),
+                    [&](const tbb::blocked_range<size_t> &range) {
+                        ScopedSetThreadEnvironment set_env(env);
+                        scoped_flush_denormals flush_denormals(true);
+                        
+                        auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
+                        mf.init(scene, m_sms_config);
+                        auto &mnee = (MNEEHelper &)tl_mnee;
+                        mnee.init(scene, m_sms_config);
+
+                        for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
+                            bounce_step(mf, mnee, wave_variables[i], depth, sensor->medium(), scene);
+                        }
+                    }
+                );
+            }
+            
+            // put to block
+            {
+                for (int i = 0; i < pixel_count && !should_stop(); ++i) {
+                    WaveVariables& variable_set = wave_variables[i];
+                    variable_set.result = variable_set.ray_weight * variable_set.result;
+
+                    UnpolarizedSpectrum spec_u = depolarize(variable_set.result);
+
+                    Color3f xyz;
+                    if constexpr (is_monochromatic_v<Spectrum>) {
+                        xyz = spec_u.x();
+                    } else if constexpr (is_rgb_v<Spectrum>) {
+                        xyz = srgb_to_xyz(spec_u, true);
+                    } else {
+                        static_assert(is_spectral_v<Spectrum>);
+                        xyz = spectrum_to_xyz(spec_u, variable_set.ray_.wavelengths, true);
+                    }
+
+                    aovs[0] = xyz.x();
+                    aovs[1] = xyz.y();
+                    aovs[2] = xyz.z();
+                    aovs[3] = select(variable_set.valid_ray, Float(1.f), Float(0.f));
+                    aovs[4] = 1.f;
+
+                    block->put(variable_set.position_sample, aovs, true);
+                }
+            }
+        }
+    }
 
     void parallel_pixel_render_block(
         int block_id,
@@ -424,7 +775,7 @@ protected:
         uint32_t pixel_count  = (uint32_t)(m_block_size * m_block_size);
         ThreadEnvironment env;
         std::mutex mutex;
-        
+
         uint32_t sample_count = (uint32_t)(sample_count_ == (size_t) -1
                 ? sampler->sample_count()
                 : sample_count_);
@@ -432,30 +783,29 @@ protected:
         diff_scale_factor = max(diff_scale_factor, m_glint_diff_scale_factor_clamp);
 
         if constexpr (!is_array_v<Float>) {
-            std::cout<<"parallel pixel render block"<<std::endl;
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, pixel_count, 1),
-                [&](const tbb::blocked_range<size_t> &range) {
-                    ScopedSetThreadEnvironment set_env(env);
-                    ref<Sampler> _sampler = sampler->clone();
-                    scoped_flush_denormals flush_denormals(true);
+            sampling_loop(block_id, scene, sensor, sampler, block, aovs, sample_count_);
+            // tbb::parallel_for(
+            //     tbb::blocked_range<size_t>(0, pixel_count, 1),
+            //     [&](const tbb::blocked_range<size_t> &range) {
+            //         ScopedSetThreadEnvironment set_env(env);
+            //         ref<Sampler> _sampler = sampler->clone();
+            //         scoped_flush_denormals flush_denormals(true);
                     
-                    _sampler->seed(block_id * pixel_count + range.begin());
+            //         _sampler->seed(block_id * pixel_count + range.begin());
                     
+            //         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
+            //             ScalarPoint2u pos = enoki::morton_decode<ScalarPoint2u>(i);
+            //             if (any(pos >= block->size()))
+            //                 continue;
+            //             pos += block->offset();
 
-                    for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
-                        ScalarPoint2u pos = enoki::morton_decode<ScalarPoint2u>(i);
-                        if (any(pos >= block->size()))
-                            continue;
-
-                        pos += block->offset();
-                        for (uint32_t j = 0; j < sample_count && !should_stop(); ++j) {
-                            MonteCarloIntegrator::render_sample(scene, sensor, _sampler, block, aovs,
-                                        pos, diff_scale_factor);
-                        }
-                    }
-                }
-            );
+            //             for (uint32_t j = 0; j < sample_count && !should_stop(); ++j) {
+            //                 MonteCarloIntegrator::render_sample(scene, sensor, _sampler, block, aovs,
+            //                             pos, diff_scale_factor);
+            //             }
+            //         }
+            //     }
+            // );
 
             // for (uint32_t i = 0; i < pixel_count && !should_stop(); ++i) {
             //     ScalarPoint2u pos = enoki::morton_decode<ScalarPoint2u>(i);
@@ -558,10 +908,11 @@ protected:
             
             // Process each block in single thread
             for(size_t idx = 0; idx < total_blocks && !should_stop(); ++idx) {
+                std::cout<<"Rendering block "<<idx<<"/"<<total_blocks<<std::endl;
                 ref<ImageBlock> block = new ImageBlock(m_block_size, channels.size(),
                                  film->reconstruction_filter(),
                                  !has_aovs);
-                scoped_flush_denormals flush_denormals(true);
+                // scoped_flush_denormals flush_denormals(true);
                 std::unique_ptr<Float[]> aovs(new Float[channels.size()]);
 
                 auto [offset, size, block_id] = spiral.next_block();
@@ -572,10 +923,10 @@ protected:
                 // Ensure that the sample generation is fully deterministic
 
                 parallel_pixel_render_block(block_id, scene, sensor, sensor->sampler(), block,
-                            aovs.get(), samples_per_pass);
-
+                aovs.get(), samples_per_pass);
+                
                 film->put(block);
-
+                
                 // report progress
                 blocks_done++;
                 progress->update(blocks_done / (ScalarFloat) total_blocks);
