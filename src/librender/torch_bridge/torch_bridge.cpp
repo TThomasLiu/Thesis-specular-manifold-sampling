@@ -25,8 +25,10 @@ FlowModelBridge::FlowModelBridge(const char* path, bool use_gpu) {
 
     if (use_gpu){
         m_impl->model.to(torch::kCUDA);
+        m_impl->device = torch::kCUDA;
     }else{
         m_impl->model.to(torch::kCPU);
+        m_impl->device = torch::kCPU;
     }
 
     m_impl->loaded = true;
@@ -44,7 +46,7 @@ FlowModelBridge::FlowModelBridge(const char* path, bool use_gpu) {
         }
         m_impl->device = torch::kCPU;
     }
-    m_impl->model.to(torch::kHalf);
+    // m_impl->model.to(torch::kHalf);
     m_impl->model = torch::jit::freeze(m_impl->model);            // 2. 再 freeze
     m_impl->model = torch::jit::optimize_for_inference(m_impl->model);  // 3. 最後優化
 }
@@ -55,13 +57,14 @@ void FlowModelBridge::vis_forward(const float* input_data, int* output, int data
     }
     torch::NoGradGuard no_grad;
 
-    auto c_tensor   = torch::from_blob((void*)input_data,   {data_size, 6}, torch::kFloat32).to(m_impl->device, torch::kHalf, /*non_blocking=*/false);;
+    // auto c_tensor   = torch::from_blob((void*)input_data,   {data_size, 6}, torch::kFloat32).to(m_impl->device, torch::kHalf, /*non_blocking=*/false);;
+    auto c_tensor   = torch::from_blob((void*)input_data,   {data_size, 6}, torch::kFloat32).to(m_impl->device, /*non_blocking=*/false);;
     auto logit = m_impl->model.get_method("forward")({c_tensor}).toTensor();
 
     // 如果訓練時用 BCEWithLogitsLoss,forward 輸出是 raw logit,需要自己套 sigmoid
-    auto prob = torch::sigmoid(logit).squeeze(-1);
-
-    constexpr float kThreshold = 0.5f; 
+    
+    constexpr float kThreshold = 0.4f; 
+    // auto prob = torch::sigmoid(logit).squeeze(-1);
     // auto pred = (prob > kThreshold).to(torch::kInt32).contiguous().to(torch::kCPU);
     
     const float kLogitThreshold = std::log(kThreshold / (1.0f - kThreshold)); 

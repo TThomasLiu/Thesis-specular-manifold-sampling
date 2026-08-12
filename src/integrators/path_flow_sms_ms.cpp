@@ -180,6 +180,7 @@ protected:
         bool enable= true;
         float sample_weight = 1.f;
         int model_index = 0;
+        int compact_index = 0;
         Float eta = 1.f;
 
         Spectrum throughput;
@@ -678,11 +679,12 @@ protected:
 
 
         // sample
+        std::vector<int> compact_map (pixel_count);
         std::vector<WaveVariables> wave_variables(pixel_count);
         std::vector<float> model_inputs (pixel_count * 6);
         std::vector<int> model_outputs (pixel_count);
         std::atomic<int>  SMS_enable_count = 0;
-        std::atomic<int>  active_count = 0;
+        std::atomic<int>  active_count = pixel_count;
         for(int sample_idx = 0 ; sample_idx < sample_count; sample_idx++){
             // ray init
             {
@@ -732,25 +734,43 @@ protected:
                     }
                 );
             }
-            
+
             // depth loop
             for(int depth = 0; depth < m_max_depth; depth++){
+                // compact
+                {
+                    ScopedPhase scope_phase(ProfilerPhase::Compact);
+                    if(depth == 0){
+                        for(int i= 0; i < pixel_count && !should_stop(); ++i){
+                            compact_map[i] = i;
+                        }
+                    }else{
+                        int old_active_count = active_count;
+                        active_count = 0;
+                        for(int i = 0; i < old_active_count; ++i){
+                            WaveVariables& variable_set = wave_variables[compact_map[i]];
+                            if(variable_set.active){
+                                compact_map[active_count] = compact_map[i];
+                                ++active_count;
+                            }
+                        }
+                    }
+                }
+                
                 // ei sampling
                 {               
                     SMS_enable_count = 0;
-                    active_count = 0;
                     tbb::parallel_for(
-                        tbb::blocked_range<size_t>(0, pixel_count, 1),
+                        // tbb::blocked_range<size_t>(0, pixel_count, 1),
+                        tbb::blocked_range<size_t>(0, active_count, 1),
                         [&](const tbb::blocked_range<size_t> &range) {
                             ScopedSetThreadEnvironment set_env(env);
                             ScopedPhase scope_phase(ProfilerPhase::TorchVariableConvert);
                             for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
-                                WaveVariables& variable_set = wave_variables[i];
+                                // WaveVariables& variable_set = wave_variables[i];
+                                WaveVariables& variable_set = wave_variables[compact_map[i]];
                                 variable_set.ei = SpecularManifold::sample_emitter_interaction(variable_set.si, scene->caustic_emitters_multi_scatter(), variable_set.sampler);
                                 
-                                if(variable_set.active){
-                                    active_count++;
-                                }
 
                                 if (!m_flow_sms_config.visnet_enable) continue;
 
@@ -776,7 +796,6 @@ protected:
                         }
                     );
                 }
-                std::cout<<active_count<<" "<<SMS_enable_count<<std::endl;
                 
                 // model run
                 {
@@ -788,7 +807,8 @@ protected:
 
                 // bounce
                 tbb::parallel_for(
-                    tbb::blocked_range<size_t>(0, pixel_count, 1),
+                    // tbb::blocked_range<size_t>(0, pixel_count, 1),
+                    tbb::blocked_range<size_t>(0, active_count, 1),
                     [&](const tbb::blocked_range<size_t> &range) {
                         ScopedSetThreadEnvironment set_env(env);
                         scoped_flush_denormals flush_denormals(true);
@@ -799,7 +819,8 @@ protected:
                         mnee.init(scene, m_sms_config);
 
                         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
-                            WaveVariables& variable_set = wave_variables[i];
+                            // WaveVariables& variable_set = wave_variables[i];
+                            WaveVariables& variable_set = wave_variables[compact_map[i]];
                             if (m_flow_sms_config.visnet_enable) {   
                                 if (variable_set.model_index == -1){
                                     variable_set.enable = false;

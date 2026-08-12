@@ -14,14 +14,15 @@ def run_cmd(command, name):
         file.write(log_str)
 
 # 5 min for all methods that we want to compare
-# timeout = 5*60
+timeout = 5*60
 # timeout = 5
-timeout = 60
+# timeout = 60
 
 crop_s = 1080
 crop_x = 420
 crop_y = 0
-block_size = 1024
+block_size = 512
+# block_size = 512
 
 name = "slab_pt"
 cmd = "mitsuba "
@@ -91,15 +92,15 @@ name = "slab_flow_sms_vis_test"
 cmd = "mitsuba "
 cmd += "slab_flow_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
-# cmd += "-Dspp=999999999 "
-cmd += "-Dspp=3 "
+cmd += "-Dspp=999999999 "
+# cmd += "-Dspp=3 "
 cmd += "-Dsamples_per_pass=1 "
-# cmd += "-Dtimeout={} ".format(timeout)
+cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
 
-cmd += "-Dmodel_device=cpu "
+cmd += "-Dmodel_device=gpu "
 cmd += "-Dvisnet_enable=true "
-cmd += "-Dvisnet_rr_threshold=0.2 "
+cmd += "-Dvisnet_rr_threshold=0.1 "
 
 cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
@@ -109,10 +110,10 @@ name = "slab_flow_sms_test"
 cmd = "mitsuba "
 cmd += "slab_flow_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
-# cmd += "-Dspp=999999999 "
-cmd += "-Dspp=3 "
+cmd += "-Dspp=999999999 "
+# cmd += "-Dspp=3 "
 cmd += "-Dsamples_per_pass=1 "
-# cmd += "-Dtimeout={} ".format(timeout)
+cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
 
 cmd += "-Dvisnet_enable=false "

@@ -26,6 +26,7 @@ enum class ProfilerPhase : int {
     SMSVisCheck,                /* SMS visibility check */
     TorchVariableConvert,       /* Torch variable conversion */
     TorchModelRun,              /* Torch model execution */
+    Compact,                    /* Compact active samples */
     SMSCausticsBernoulliTrials,
     SMSGlints,
     SMSGlintsBernoulliTrials,
@@ -63,6 +64,7 @@ constexpr const char
         "SMS::VisibilityCheck",
         "Torch::VariableConvert",
         "Torch::ModelRun",
+        "Compact",
         "SMS::CausticsBernoulliTrials",
         "SMS::Glints",
         "SMS::GlintsBernoulliTrials",
