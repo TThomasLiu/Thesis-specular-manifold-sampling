@@ -86,7 +86,7 @@ cmd += "-Dcaustics_biased=false "
 # cmd += "-Dcaustics_max_trials={} ".format(8)
 cmd += "-Dcrop_width={} ".format(crop_s)
 cmd += "-Dcrop_height={} ".format(crop_s)
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 
 name = "slab_flow_sms_vis_test"
 cmd = "mitsuba "
@@ -102,7 +102,7 @@ cmd += "-Dmodel_device=gpu "
 cmd += "-Dvisnet_enable=true "
 cmd += "-Dvisnet_rr_threshold=0.1 "
 
-cmd += "-Dblock_size={} ".format(block_size)
+cmd += "-Dblock_size={} ".format(1024)
 print(cmd)
 run_cmd(cmd, name)
 

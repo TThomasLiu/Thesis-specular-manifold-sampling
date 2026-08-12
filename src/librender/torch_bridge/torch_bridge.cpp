@@ -47,8 +47,8 @@ FlowModelBridge::FlowModelBridge(const char* path, bool use_gpu) {
         m_impl->device = torch::kCPU;
     }
     // m_impl->model.to(torch::kHalf);
-    m_impl->model = torch::jit::freeze(m_impl->model);            // 2. 再 freeze
-    m_impl->model = torch::jit::optimize_for_inference(m_impl->model);  // 3. 最後優化
+    // m_impl->model = torch::jit::freeze(m_impl->model);            // 2. 再 freeze
+    // m_impl->model = torch::jit::optimize_for_inference(m_impl->model);  // 3. 最後優化
 }
 
 void FlowModelBridge::vis_forward(const float* input_data, int* output, int data_size) {

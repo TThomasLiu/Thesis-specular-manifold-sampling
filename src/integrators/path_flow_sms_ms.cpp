@@ -686,6 +686,19 @@ protected:
         std::vector<int> model_outputs (pixel_count);
         std::atomic<int>  SMS_enable_count = 0;
         std::atomic<int>  active_count = pixel_count;
+
+        // assign sampler
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, pixel_count, 1),
+            [&](const tbb::blocked_range<size_t> &range) {
+                    for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
+                        WaveVariables& variable_set = wave_variables[i];
+                        variable_set.sampler = sampler->clone();
+                        variable_set.sampler->seed(block_id * pixel_count * sample_count + i);
+                    }
+            }
+        );
+
         for(int sample_idx = 0 ; sample_idx < sample_count; sample_idx++){
             // ray init
             {
@@ -696,8 +709,6 @@ protected:
                         
                         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
                             WaveVariables& variable_set = wave_variables[i];
-                            variable_set.sampler = sampler->clone();
-                            variable_set.sampler->seed(block_id * pixel_count * sample_count + sample_idx * pixel_count + i);
                             variable_set.position_sample = enoki::morton_decode<ScalarPoint2u>(i);
                             
                             if (any(variable_set.position_sample >= block->size())){
@@ -758,51 +769,53 @@ protected:
                     }
                 }
                 
-                // ei sampling
-                {               
-                    SMS_enable_count = 0;
-                    tbb::parallel_for(
-                        // tbb::blocked_range<size_t>(0, pixel_count, 1),
-                        tbb::blocked_range<size_t>(0, active_count, 1),
-                        [&](const tbb::blocked_range<size_t> &range) {
-                            ScopedSetThreadEnvironment set_env(env);
-                            ScopedPhase scope_phase(ProfilerPhase::TorchVariableConvert);
-                            for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
-                                // WaveVariables& variable_set = wave_variables[i];
-                                WaveVariables& variable_set = wave_variables[compact_map[i]];
-                                variable_set.ei = SpecularManifold::sample_emitter_interaction(variable_set.si, scene->caustic_emitters_multi_scatter(), variable_set.sampler);
-                                
-
-                                if (!m_flow_sms_config.visnet_enable) continue;
-
-                                if ( variable_set.active && 
-                                    variable_set.si.is_valid() && 
-                                    variable_set.si.shape->is_caustic_receiver() &&
-                                    (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth))
-                                {
-                                    variable_set.model_index = SMS_enable_count.fetch_add(1, std::memory_order_relaxed);
-                                }else{
-                                    variable_set.model_index = -1;
-                                    continue;
+                if(depth != 0){
+                    // ei sampling
+                    {               
+                        SMS_enable_count = 0;
+                        tbb::parallel_for(
+                            // tbb::blocked_range<size_t>(0, pixel_count, 1),
+                            tbb::blocked_range<size_t>(0, active_count, 1),
+                            [&](const tbb::blocked_range<size_t> &range) {
+                                ScopedSetThreadEnvironment set_env(env);
+                                ScopedPhase scope_phase(ProfilerPhase::TorchVariableConvert);
+                                for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
+                                    // WaveVariables& variable_set = wave_variables[i];
+                                    WaveVariables& variable_set = wave_variables[compact_map[i]];
+                                    variable_set.ei = SpecularManifold::sample_emitter_interaction(variable_set.si, scene->caustic_emitters_multi_scatter(), variable_set.sampler);
+                                    
+    
+                                    if (!m_flow_sms_config.visnet_enable) continue;
+    
+                                    if ( variable_set.active && 
+                                        variable_set.si.is_valid() && 
+                                        variable_set.si.shape->is_caustic_receiver() &&
+                                        (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth))
+                                    {
+                                        variable_set.model_index = SMS_enable_count.fetch_add(1, std::memory_order_relaxed);
+                                    }else{
+                                        variable_set.model_index = -1;
+                                        continue;
+                                    }
+    
+                                    int index = variable_set.model_index * 6;
+                                    model_inputs[index + 0] = variable_set.ei.p.x();
+                                    model_inputs[index + 1] = variable_set.ei.p.y();
+                                    model_inputs[index + 2] = variable_set.ei.p.z();
+                                    model_inputs[index + 3] = variable_set.si.p.x();
+                                    model_inputs[index + 4] = variable_set.si.p.y();
+                                    model_inputs[index + 5] = variable_set.si.p.z();
                                 }
-
-                                int index = variable_set.model_index * 6;
-                                model_inputs[index + 0] = variable_set.ei.p.x();
-                                model_inputs[index + 1] = variable_set.ei.p.y();
-                                model_inputs[index + 2] = variable_set.ei.p.z();
-                                model_inputs[index + 3] = variable_set.si.p.x();
-                                model_inputs[index + 4] = variable_set.si.p.y();
-                                model_inputs[index + 5] = variable_set.si.p.z();
                             }
+                        );
+                    }
+                    
+                    // model run
+                    {
+                        ScopedPhase scope_phase(ProfilerPhase::TorchModelRun);
+                        if (SMS_enable_count > 0 && m_flow_sms_config.visnet_enable) {
+                            torch_test_vismodel(model_inputs.data(), model_outputs.data(), SMS_enable_count);
                         }
-                    );
-                }
-                
-                // model run
-                {
-                    ScopedPhase scope_phase(ProfilerPhase::TorchModelRun);
-                    if (SMS_enable_count > 0 && m_flow_sms_config.visnet_enable) {
-                        torch_test_vismodel(model_inputs.data(), model_outputs.data(), SMS_enable_count);
                     }
                 }
 
@@ -840,7 +853,6 @@ protected:
                                     }
                                 }
                             }
-
                             bounce_step(mf, mnee, variable_set, depth, sensor->medium(), scene);
                         }
                     }
