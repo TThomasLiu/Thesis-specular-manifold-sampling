@@ -20,6 +20,7 @@
     <default name="caustics_solver_threshold"       value="0.00001"/>
     <default name="caustics_uniqueness_threshold"   value="0.00001"/>
     <default name="caustics_max_trials"             value="10000000"/>
+    <default name="remove_pt_direct_hit"             value="true"/>
 
     <default name="model_device"                    value="gpu"/>
     <default name="visnet_enable"                   value="true"/>
@@ -44,6 +45,7 @@
         <float   name="uniqueness_threshold"    value="$caustics_uniqueness_threshold"/>
         <integer name="max_trials"              value="$caustics_max_trials"/>
         <integer name="bounces"                 value="$caustics_bounces"/>
+        <boolean name="remove_pt_direct_hit"    value="$remove_pt_direct_hit"/>
 
         <string  name="model_device"             value="$model_device"/>
         <boolean name="visnet_enable"            value="$visnet_enable"/>

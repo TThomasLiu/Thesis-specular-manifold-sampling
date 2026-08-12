@@ -19,6 +19,8 @@
     <default name="caustics_solver_threshold"       value="0.00001"/>
     <default name="caustics_uniqueness_threshold"   value="0.00001"/>
     <default name="caustics_max_trials"             value="10000000"/>
+    
+    <default name="remove_pt_direct_hit"             value="true"/>
 
     <default name="caustics_bounces"                value="2"/>
 
@@ -38,6 +40,7 @@
         <float   name="uniqueness_threshold"    value="$caustics_uniqueness_threshold"/>
         <integer name="max_trials"              value="$caustics_max_trials"/>
         <integer name="bounces"                 value="$caustics_bounces"/>
+        <boolean name="remove_pt_direct_hit"    value="$remove_pt_direct_hit"/>
 
         <boolean name="biased_mnee" value="$biased_mnee"/>
     </integrator>

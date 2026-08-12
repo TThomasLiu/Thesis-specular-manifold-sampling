@@ -159,7 +159,7 @@ public:
         m_sms_config.max_trials             = props.int_("max_trials", -1);
 
         m_sms_config.bounces                = props.int_("bounces", 2);
-
+        m_sms_config.remove_pt_direct_hit   = props.bool_("remove_pt_direct_hit", false);
         m_biased_mnee                  = props.bool_("biased_mnee", false);
     }
 
@@ -298,7 +298,7 @@ public:
                 mnee.state_transition(si_bsdf);
 
                 // Hit emitter after BSDF sampling
-                if (emitter) {
+                if (emitter && !m_sms_config.remove_pt_direct_hit) {
                     /* With the same reasoning as in the emitter sampling case,
                        filter out some of the light paths here.
                        Again, this is unfortunately not robust in all cases,

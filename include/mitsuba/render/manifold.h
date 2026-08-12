@@ -22,6 +22,7 @@ struct SMSConfig {
 
     // For multi-bounce implementation
     int bounces = 1;                            // What path length should be sampled?
+    bool remove_pt_direct_hit = false;
 
     // For glint implementation
     bool bsdf_strategy_only = false;            // Disable MIS and only use the BSDF strategy
