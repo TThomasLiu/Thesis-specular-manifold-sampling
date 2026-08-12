@@ -23,6 +23,9 @@ enum class ProfilerPhase : int {
     Render,                     /* Integrator::render() */
     SamplingIntegratorSample,   /* SamplingIntegrator::sample() */
     SMSCaustics,
+    SMSVisCheck,                /* SMS visibility check */
+    TorchVariableConvert,       /* Torch variable conversion */
+    TorchModelRun,              /* Torch model execution */
     SMSCausticsBernoulliTrials,
     SMSGlints,
     SMSGlintsBernoulliTrials,
@@ -44,6 +47,7 @@ enum class ProfilerPhase : int {
     TextureSample,              /* Texture::sample() */
     TextureEvaluate,            /* Texture::eval() and Texture::pdf() */
 
+
     ProfilerPhaseCount
 };
 
@@ -56,6 +60,9 @@ constexpr const char
         "Integrator::render()",
         "SamplingIntegrator::sample()",
         "SMS::Caustics",
+        "SMS::VisibilityCheck",
+        "Torch::VariableConvert",
+        "Torch::ModelRun",
         "SMS::CausticsBernoulliTrials",
         "SMS::Glints",
         "SMS::GlintsBernoulliTrials",

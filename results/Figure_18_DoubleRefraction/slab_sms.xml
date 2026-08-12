@@ -96,8 +96,8 @@
     </shape>
 
     <film type="hdrfilm" id="film">
-            <integer name="width" value="256"/>
-            <integer name="height" value="256"/>
+            <integer name="width" value="1024"/>
+            <integer name="height" value="1024"/>
             <rfilter type="gaussian"/>
 
             <!-- <integer name="crop_offset_x" value="$crop_offset_x"/>

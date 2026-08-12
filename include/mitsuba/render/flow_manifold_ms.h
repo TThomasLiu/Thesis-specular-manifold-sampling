@@ -41,7 +41,10 @@ public:
      *     the desired shading point.
      */
     Spectrum specular_manifold_sampling(const SurfaceInteraction3f &si,
-                                        ref<Sampler> sampler);
+                                        ref<Sampler> sampler,
+                                        const EmitterInteraction& ei,
+                                        const int external_enable
+                                    );
 
 
     // ========================================================================

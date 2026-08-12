@@ -25,6 +25,7 @@
 #include <mutex>
 
 #include <mitsuba/render/flow_manifold_ms.h>
+#include <mitsuba/render/torch_bridge/torch_bridge.h>
 
 NAMESPACE_BEGIN(mitsuba)
 
@@ -61,6 +62,7 @@ public:
     using SpecularManifold = SpecularManifold<Float, Spectrum>;
     using FlowSpecularManifoldMultiScatter = FlowSpecularManifoldMultiScatter<Float, Spectrum>;
     using MonteCarloIntegrator = MonteCarloIntegrator<Float, Spectrum>;
+    using EmitterInteraction = EmitterInteraction<Float, Spectrum>;
 
 protected:
     /* The integration of SMS is pretty straight forward in the multi-bounce
@@ -175,10 +177,12 @@ protected:
         // FlowSpecularManifoldMultiScatter *mf;
         // ref<MNEEHelper> mnee;
         bool specular_camera_path = true; 
+        bool enable= true;
         Float eta = 1.f;
 
         Spectrum throughput;
         SurfaceInteraction3f si;
+        EmitterInteraction ei;
         
         // output
         Spectrum result;
@@ -207,6 +211,14 @@ public:
     }
 
     bool render(Scene *scene, Sensor *sensor) override {
+        auto shapes = scene->caustic_casters_multi_scatter();
+        for (size_t shape_idx = 0; shape_idx < shapes.size(); ++shape_idx) {
+            const ShapePtr specular_shape = shapes[shape_idx];
+            if (!specular_shape->flow_model_path().empty()) {
+                torch_load_model(specular_shape->flow_model_path().c_str());
+            }
+        }
+
         // bool result = MonteCarloIntegrator::render(scene, sensor);
         bool result = sequential_block_render(scene, sensor);
         FlowSpecularManifoldMultiScatter::print_statistics();
@@ -219,199 +231,200 @@ public:
                                      const Medium * /* medium */,
                                      Float * /* aovs */,
                                      Mask active) const override {
-        MTS_MASKED_FUNCTION(ProfilerPhase::SamplingIntegratorSample, active);
+        return { 0.f, 0.f };
+        // MTS_MASKED_FUNCTION(ProfilerPhase::SamplingIntegratorSample, active);
 
-        auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
-        mf.init(scene, m_sms_config);
-        auto &mnee = (MNEEHelper &)tl_mnee;
-        mnee.init(scene, m_sms_config);
+        // auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
+        // mf.init(scene, m_sms_config);
+        // auto &mnee = (MNEEHelper &)tl_mnee;
+        // mnee.init(scene, m_sms_config);
 
-        if constexpr (is_array_v<Float>) {
-            Throw("This integrator does not support vector/gpu/autodiff modes!");
-            return { 0.f, 0.f };
-        } else {
-            RayDifferential3f ray = ray_;
-            Float eta = 1.f;
-            Spectrum throughput(1.f), result(0.f);
-            bool specular_camera_path = true;   // To capture emitters visible direcly through purely specular reflection/refractions
+        // if constexpr (is_array_v<Float>) {
+        //     Throw("This integrator does not support vector/gpu/autodiff modes!");
+        //     return { 0.f, 0.f };
+        // } else {
+        //     RayDifferential3f ray = ray_;
+        //     Float eta = 1.f;
+        //     Spectrum throughput(1.f), result(0.f);
+        //     bool specular_camera_path = true;   // To capture emitters visible direcly through purely specular reflection/refractions
 
-            // ---------------------- First intersection ----------------------
+        //     // ---------------------- First intersection ----------------------
 
-            SurfaceInteraction3f si = scene->ray_intersect(ray);
-            Mask valid_ray = si.is_valid();
-            EmitterPtr emitter = si.emitter(scene);
-            // Keep track of state regarding previous bounces in order to do unbiased MNEE
-            mnee.state_transition(si);
+        //     SurfaceInteraction3f si = scene->ray_intersect(ray);
+        //     Mask valid_ray = si.is_valid();
+        //     EmitterPtr emitter = si.emitter(scene);
+        //     // Keep track of state regarding previous bounces in order to do unbiased MNEE
+        //     mnee.state_transition(si);
 
-            if (emitter) {
-                result += emitter->eval(si);
-            }
+        //     if (emitter) {
+        //         result += emitter->eval(si);
+        //     }
 
-            // ---------------------- Main loop ----------------------
+        //     // ---------------------- Main loop ----------------------
 
-            for (int depth = 1;; ++depth) {
+        //     for (int depth = 1;; ++depth) {
 
-                // ------------------ Possibly terminate path -----------------
+        //         // ------------------ Possibly terminate path -----------------
 
-                if (!si.is_valid())
-                    break;
-                si.compute_partials(ray);
+        //         if (!si.is_valid())
+        //             break;
+        //         si.compute_partials(ray);
 
-                if (depth > m_rr_depth) {
-                    Float q = min(hmax(depolarize(throughput)) * sqr(eta), .95f);
-                    if (sampler->next_1d() > q)
-                        break;
-                    throughput *= rcp(q);
-                }
+        //         if (depth > m_rr_depth) {
+        //             Float q = min(hmax(depolarize(throughput)) * sqr(eta), .95f);
+        //             if (sampler->next_1d() > q)
+        //                 break;
+        //             throughput *= rcp(q);
+        //         }
 
-                if (uint32_t(depth) >= uint32_t(m_max_depth))
-                    break;
+        //         if (uint32_t(depth) >= uint32_t(m_max_depth))
+        //             break;
 
-                // --------------- Specular Manifold Sampling -----------------
+        //         // --------------- Specular Manifold Sampling -----------------
 
-                bool on_caustic_caster = si.shape->is_caustic_caster_multi_scatter() ||
-                                         si.shape->is_caustic_bouncer();
+        //         bool on_caustic_caster = si.shape->is_caustic_caster_multi_scatter() ||
+        //                                  si.shape->is_caustic_bouncer();
 
-                if (si.shape->is_caustic_receiver() && !on_caustic_caster &&
-                    (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)) {
-                    result += throughput * mf.specular_manifold_sampling(si, sampler);
-                }
+        //         if (si.shape->is_caustic_receiver() && !on_caustic_caster &&
+        //             (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)) {
+        //             result += throughput * mf.specular_manifold_sampling(si, sampler);
+        //         }
 
-                // --------------------- Emitter sampling ---------------------
+        //         // --------------------- Emitter sampling ---------------------
 
-                BSDFContext ctx;
-                ctx.sampler = sampler;
-                BSDFPtr bsdf = si.bsdf(ray);
+        //         BSDFContext ctx;
+        //         ctx.sampler = sampler;
+        //         BSDFPtr bsdf = si.bsdf(ray);
 
-                /* As usual, emitter sampling only makes sense on Smooth BSDFs
-                   that can be evaluated.
-                   Additionally, filter out:
-                    - paths that we could previously sample with SMS
-                    - paths that are even harder to sample, e.g. paths bouncing
-                      off several caustic casters before hitting the light.
-                   As a result, we only do emitter sampling on non-caustic
-                   casters---with the exception of the first bounce where we might
-                   see a direct (glossy) reflection of a light source this way.
+        //         /* As usual, emitter sampling only makes sense on Smooth BSDFs
+        //            that can be evaluated.
+        //            Additionally, filter out:
+        //             - paths that we could previously sample with SMS
+        //             - paths that are even harder to sample, e.g. paths bouncing
+        //               off several caustic casters before hitting the light.
+        //            As a result, we only do emitter sampling on non-caustic
+        //            casters---with the exception of the first bounce where we might
+        //            see a direct (glossy) reflection of a light source this way.
 
-                   Note: of course, SMS might not always be the optimal sampling
-                   strategy. For example, when rough surfaces are involved it
-                   would be still better to do emitter sampling.
-                   A way of incoorporating MIS with all of this would be super
-                   useful. */
-                if (has_flag(bsdf->flags(), BSDFFlags::Smooth) &&
-                    !on_caustic_caster) {
-                    /* In case we didn't scatter off a caustic receiver before
-                       or aren't interacting with a caustic caster now, do
-                       emitter sampling as usual. */
-                    auto [ds, emitter_weight] = scene->sample_emitter_direction(si, sampler->next_2d(), true);
-                    if (ds.pdf != 0.f) {
-                        // Query the BSDF for that emitter-sampled direction
-                        Vector3f wo = si.to_local(ds.d);
-                        Spectrum bsdf_val = bsdf->eval(ctx, si, wo);
-                        bsdf_val = si.to_world_mueller(bsdf_val, -wo, si.wi);
+        //            Note: of course, SMS might not always be the optimal sampling
+        //            strategy. For example, when rough surfaces are involved it
+        //            would be still better to do emitter sampling.
+        //            A way of incoorporating MIS with all of this would be super
+        //            useful. */
+        //         if (has_flag(bsdf->flags(), BSDFFlags::Smooth) &&
+        //             !on_caustic_caster) {
+        //             /* In case we didn't scatter off a caustic receiver before
+        //                or aren't interacting with a caustic caster now, do
+        //                emitter sampling as usual. */
+        //             auto [ds, emitter_weight] = scene->sample_emitter_direction(si, sampler->next_2d(), true);
+        //             if (ds.pdf != 0.f) {
+        //                 // Query the BSDF for that emitter-sampled direction
+        //                 Vector3f wo = si.to_local(ds.d);
+        //                 Spectrum bsdf_val = bsdf->eval(ctx, si, wo);
+        //                 bsdf_val = si.to_world_mueller(bsdf_val, -wo, si.wi);
 
-                        // Determine density of sampling that same direction using BSDF sampling
-                        Float bsdf_pdf = bsdf->pdf(ctx, si, wo);
-                        Float mis = select(ds.delta, 1.f, mis_weight(ds.pdf, bsdf_pdf));
-                        result += mis * throughput * bsdf_val * emitter_weight;
-                    }
-                }
+        //                 // Determine density of sampling that same direction using BSDF sampling
+        //                 Float bsdf_pdf = bsdf->pdf(ctx, si, wo);
+        //                 Float mis = select(ds.delta, 1.f, mis_weight(ds.pdf, bsdf_pdf));
+        //                 result += mis * throughput * bsdf_val * emitter_weight;
+        //             }
+        //         }
 
-                // ----------------------- BSDF sampling ----------------------
+        //         // ----------------------- BSDF sampling ----------------------
 
-                // Sample BSDF * cos(theta)
-                auto [bs, bsdf_weight] = bsdf->sample(ctx, si, sampler->next_1d(),
-                                                      sampler->next_2d());
-                bsdf_weight = si.to_world_mueller(bsdf_weight, -bs.wo, si.wi);
+        //         // Sample BSDF * cos(theta)
+        //         auto [bs, bsdf_weight] = bsdf->sample(ctx, si, sampler->next_1d(),
+        //                                               sampler->next_2d());
+        //         bsdf_weight = si.to_world_mueller(bsdf_weight, -bs.wo, si.wi);
 
-                throughput = throughput * bsdf_weight;
-                eta *= bs.eta;
-                if (!has_flag(bs.sampled_type, BSDFFlags::Delta)) {
-                    specular_camera_path = false;
-                }
+        //         throughput = throughput * bsdf_weight;
+        //         eta *= bs.eta;
+        //         if (!has_flag(bs.sampled_type, BSDFFlags::Delta)) {
+        //             specular_camera_path = false;
+        //         }
 
-                if (all(eq(throughput, 0.f)))
-                    break;
+        //         if (all(eq(throughput, 0.f)))
+        //             break;
 
-                // Intersect the BSDF ray against the scene geometry
-                ray = si.spawn_ray(si.to_world(bs.wo));
-                SurfaceInteraction3f si_bsdf = scene->ray_intersect(ray);
-                emitter = si_bsdf.emitter(scene);
+        //         // Intersect the BSDF ray against the scene geometry
+        //         ray = si.spawn_ray(si.to_world(bs.wo));
+        //         SurfaceInteraction3f si_bsdf = scene->ray_intersect(ray);
+        //         emitter = si_bsdf.emitter(scene);
 
-                // Keep track of state regarding previous bounces in order to do unbiased MNEE
-                mnee.state_transition(si_bsdf);
+        //         // Keep track of state regarding previous bounces in order to do unbiased MNEE
+        //         mnee.state_transition(si_bsdf);
 
-                // Hit emitter after BSDF sampling
-                if (emitter) {
-                    /* With the same reasoning as in the emitter sampling case,
-                       filter out some of the light paths here.
-                       Again, this is unfortunately not robust in all cases,
-                       for large light sources, BSDF sampling would be more
-                       appropriate than relying purely on SMS. */
-                    if (!on_caustic_caster || specular_camera_path) {
-                        /* Only do BSDF sampling in usual way if we don't interact
-                           with a caustic caster now. */
+        //         // Hit emitter after BSDF sampling
+        //         if (emitter) {
+        //             /* With the same reasoning as in the emitter sampling case,
+        //                filter out some of the light paths here.
+        //                Again, this is unfortunately not robust in all cases,
+        //                for large light sources, BSDF sampling would be more
+        //                appropriate than relying purely on SMS. */
+        //             if (!on_caustic_caster || specular_camera_path) {
+        //                 /* Only do BSDF sampling in usual way if we don't interact
+        //                    with a caustic caster now. */
 
-                        // Evaluate the emitter for that direction
-                        Spectrum emitter_val = emitter->eval(si_bsdf);
+        //                 // Evaluate the emitter for that direction
+        //                 Spectrum emitter_val = emitter->eval(si_bsdf);
 
-                        /* Determine probability of having sampled that same
-                           direction using emitter sampling. */
-                        DirectionSample3f ds(si_bsdf, si);
-                        ds.object = emitter;
-                        Float emitter_pdf = select(!has_flag(bs.sampled_type, BSDFFlags::Delta),
-                                                   scene->pdf_emitter_direction(si, ds),
-                                                   0.f);
-                        Float mis = mis_weight(bs.pdf, emitter_pdf);
-                        result += mis * throughput * emitter_val;
-                    } else if (m_sms_config.mnee_init && !m_biased_mnee &&
-                               mnee.is_possible()) {
-                        /* These are the light paths that can be sampled with SMS.
-                           In case we're doing MNEE, only a single deterministic path
-                           can be generated though, and if we wish to stay unbiased
-                           we need to do an additional test here to see if MNEE could
-                           generate the currently found light connection as well.
-                           Note: Hanika et al. 2015 discuss a more advanced MIS strategy
-                           here that also accounts for the smooth probablility density
-                           from rough BSDFs. This could be added as well here. To
-                           support the rough case properly, the sampled half-vectors
-                           of specular paths to be tested with MNEE would need to be
-                           passed to the FlowSpecularManifoldMultiScatter datastructure
-                           somehow. */
+        //                 /* Determine probability of having sampled that same
+        //                    direction using emitter sampling. */
+        //                 DirectionSample3f ds(si_bsdf, si);
+        //                 ds.object = emitter;
+        //                 Float emitter_pdf = select(!has_flag(bs.sampled_type, BSDFFlags::Delta),
+        //                                            scene->pdf_emitter_direction(si, ds),
+        //                                            0.f);
+        //                 Float mis = mis_weight(bs.pdf, emitter_pdf);
+        //                 result += mis * throughput * emitter_val;
+        //             } else if (m_sms_config.mnee_init && !m_biased_mnee &&
+        //                        mnee.is_possible()) {
+        //                 /* These are the light paths that can be sampled with SMS.
+        //                    In case we're doing MNEE, only a single deterministic path
+        //                    can be generated though, and if we wish to stay unbiased
+        //                    we need to do an additional test here to see if MNEE could
+        //                    generate the currently found light connection as well.
+        //                    Note: Hanika et al. 2015 discuss a more advanced MIS strategy
+        //                    here that also accounts for the smooth probablility density
+        //                    from rough BSDFs. This could be added as well here. To
+        //                    support the rough case properly, the sampled half-vectors
+        //                    of specular paths to be tested with MNEE would need to be
+        //                    passed to the FlowSpecularManifoldMultiScatter datastructure
+        //                    somehow. */
 
-                        ShapePtr specular_shape = mnee.specular_shapes[0];
-                        EmitterInteraction ei = SpecularManifold::emitter_interaction(scene, mnee.si_endpoint, si_bsdf);
-                        bool success = mf.sample_path(specular_shape, mnee.si_endpoint, ei, sampler, true);
-                        if (success) {
-                            auto current_path = mf.current_path();
-                            for (size_t k = 0; k < current_path.size(); ++k) {
-                                Point3f p_pt = mnee.specular_positions[k],
-                                        p_mnee = current_path[k].p;
-                                if (norm(p_pt - p_mnee) >= 1e-5f) {
-                                    success = false;
-                                }
-                            }
-                        }
+        //                 ShapePtr specular_shape = mnee.specular_shapes[0];
+        //                 EmitterInteraction ei = SpecularManifold::emitter_interaction(scene, mnee.si_endpoint, si_bsdf);
+        //                 bool success = mf.sample_path(specular_shape, mnee.si_endpoint, ei, sampler, true);
+        //                 if (success) {
+        //                     auto current_path = mf.current_path();
+        //                     for (size_t k = 0; k < current_path.size(); ++k) {
+        //                         Point3f p_pt = mnee.specular_positions[k],
+        //                                 p_mnee = current_path[k].p;
+        //                         if (norm(p_pt - p_mnee) >= 1e-5f) {
+        //                             success = false;
+        //                         }
+        //                     }
+        //                 }
 
-                        if (!success) {
-                            /* MNEE could not find this path, so add it now.
-                               There is no MIS needed as we filtered out this class of paths
-                               in the emitter sampling strategy above. Note that the original
-                               paper about MNEE is more thorough here and does full MIS which
-                               improves the case of caustics from rough BSDFs. For simplicity
-                               we leave this out, but it could be added as well. In that
-                               case, we would also need to perform this "MNEE check" in the
-                               emitter sampling step above. */
-                            result += throughput * emitter->eval(si_bsdf);
-                        }
-                    }
-                }
+        //                 if (!success) {
+        //                     /* MNEE could not find this path, so add it now.
+        //                        There is no MIS needed as we filtered out this class of paths
+        //                        in the emitter sampling strategy above. Note that the original
+        //                        paper about MNEE is more thorough here and does full MIS which
+        //                        improves the case of caustics from rough BSDFs. For simplicity
+        //                        we leave this out, but it could be added as well. In that
+        //                        case, we would also need to perform this "MNEE check" in the
+        //                        emitter sampling step above. */
+        //                     result += throughput * emitter->eval(si_bsdf);
+        //                 }
+        //             }
+        //         }
 
-                si = std::move(si_bsdf);
-            }
+        //         si = std::move(si_bsdf);
+        //     }
 
-            return { result, valid_ray };
-        }
+            // return { result, valid_ray };
+        // }
     }
 
     //! @}
@@ -488,7 +501,7 @@ protected:
 
         if (variable_set.si.shape->is_caustic_receiver() && !on_caustic_caster &&
             (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)) {
-            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler);
+            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler, variable_set.ei, variable_set.enable);
         }
 
         // --------------------- Emitter sampling ---------------------
@@ -656,6 +669,8 @@ protected:
         // sample
         for(int sample_idx = 0 ; sample_idx < sample_count; sample_idx++){
             std::vector<WaveVariables> wave_variables(pixel_count);
+            std::vector<float> model_inputs (pixel_count * 6);
+            std::vector<int> model_outputs (pixel_count);
             // ray init
             {
                 tbb::parallel_for(
@@ -714,18 +729,52 @@ protected:
             
             // depth loop
             for(int depth = 0; depth < m_max_depth; depth++){
+                // ei sampling
+                {
+                    int valid = 0;
+                    for(int i = 0; i < pixel_count; ++i){
+                        valid += wave_variables[i].active;
+                    }
+                    // std::cout<<valid<<std::endl;
+
+                    ScopedPhase scope_phase(ProfilerPhase::TorchVariableConvert);
+                    tbb::parallel_for(
+                        tbb::blocked_range<size_t>(0, pixel_count, 1),
+                        [&](const tbb::blocked_range<size_t> &range) {
+                            for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
+                                wave_variables[i].ei = SpecularManifold::sample_emitter_interaction(wave_variables[i].si, scene->caustic_emitters_multi_scatter(), wave_variables[i].sampler);
+                                int index = i * 6;
+                                model_inputs[index + 0] = wave_variables[i].ei.p.x();
+                                model_inputs[index + 1] = wave_variables[i].ei.p.y();
+                                model_inputs[index + 2] = wave_variables[i].ei.p.z();
+                                model_inputs[index + 3] = wave_variables[i].si.p.x();
+                                model_inputs[index + 4] = wave_variables[i].si.p.y();
+                                model_inputs[index + 5] = wave_variables[i].si.p.z();
+                            }
+                        }
+                    );
+                }
+                
+                // model run
+                {
+                    ScopedPhase scope_phase(ProfilerPhase::TorchModelRun);
+                    torch_test_vismodel(model_inputs.data(), model_outputs.data(), pixel_count);
+                }
+
+                // bounce
                 tbb::parallel_for(
                     tbb::blocked_range<size_t>(0, pixel_count, 1),
                     [&](const tbb::blocked_range<size_t> &range) {
                         ScopedSetThreadEnvironment set_env(env);
                         scoped_flush_denormals flush_denormals(true);
-                        
+
                         auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
                         mf.init(scene, m_sms_config);
                         auto &mnee = (MNEEHelper &)tl_mnee;
                         mnee.init(scene, m_sms_config);
 
                         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
+                             wave_variables[i].enable = model_outputs[i];
                             bounce_step(mf, mnee, wave_variables[i], depth, sensor->medium(), scene);
                         }
                     }
@@ -908,7 +957,7 @@ protected:
             
             // Process each block in single thread
             for(size_t idx = 0; idx < total_blocks && !should_stop(); ++idx) {
-                std::cout<<"Rendering block "<<idx<<"/"<<total_blocks<<std::endl;
+                // std::cout<<"Rendering block "<<idx<<"/"<<total_blocks<<std::endl;
                 ref<ImageBlock> block = new ImageBlock(m_block_size, channels.size(),
                                  film->reconstruction_filter(),
                                  !has_aovs);

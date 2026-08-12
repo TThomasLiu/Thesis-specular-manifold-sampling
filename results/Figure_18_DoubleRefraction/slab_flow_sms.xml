@@ -7,7 +7,7 @@
 
     <default name="light_angle" value="0"/>
 
-    <default name="block_size" value="64"/>
+    <default name="block_size" value="1024"/>
     <default name="samples_per_pass" value="4294967295"/>   <!-- == ((size_t) -1) -->
     <default name="timeout" value="-1.0"/>
 
@@ -46,7 +46,7 @@
 
     <shape type="obj">
         <string name="filename" value="meshes/plane_1.obj"/>
-        <string name="flow_model_path" value="models/paraboloid_din_10L_disk_fm.pt"/>
+        <string name="flow_model_path" value="models/sms_fig18_vis_3L_32h_vis.pt"/>
         <boolean name="caustic_caster_multi" value="true"/>
 
         <bsdf type="dielectric">
@@ -99,8 +99,8 @@
     </shape>
 
     <film type="hdrfilm" id="film">
-            <integer name="width" value="256"/>
-            <integer name="height" value="256"/>
+            <integer name="width" value="1024"/>
+            <integer name="height" value="1024"/>
             <rfilter type="gaussian"/>
 
             <!-- <integer name="crop_offset_x" value="$crop_offset_x"/>

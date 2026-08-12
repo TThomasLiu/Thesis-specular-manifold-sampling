@@ -17,26 +17,26 @@ FlowModelBridge& FlowModelBridge::instance(const char* path) {
 }
 
 FlowModelBridge::FlowModelBridge(const char* path) {
-    torch::set_num_threads(1);     
+    // torch::set_num_threads(1);     
     std::cout<<"constructor"<<std::endl;
     m_impl = new Impl();
     m_impl->model = torch::jit::load(path);
-    // m_impl->model.to(torch::kCUDA);
+    m_impl->model.to(torch::kCPU);
     m_impl->loaded = true;
 
-    // if (m_impl->device == torch::kCUDA && torch::cuda::is_available()) {
-    //         m_impl->model.to(torch::kCUDA);
-    //         m_impl->device = torch::kCUDA;
-    //         std::cerr << "[FlowModelBridge] Model moved to CUDA. "
-    //                   << "Device count = " << torch::cuda::device_count() << std::endl;
-    //     } else {
-    //         if (!torch::cuda::is_available()) {
-    //             std::cerr << "[FlowModelBridge] WARNING: GPU requested but "
-    //                       << "torch::cuda::is_available() returned false! "
-    //                       << "Falling back to CPU." << std::endl;
-    //         }
-    //         m_impl->device = torch::kCPU;
-    //     }
+    if (m_impl->device == torch::kCUDA && torch::cuda::is_available()) {
+        m_impl->model.to(torch::kCUDA);
+        m_impl->device = torch::kCUDA;
+        std::cerr << "[FlowModelBridge] Model moved to CUDA. "
+                    << "Device count = " << torch::cuda::device_count() << std::endl;
+    } else {
+        if (!torch::cuda::is_available()) {
+            std::cerr << "[FlowModelBridge] WARNING: GPU requested but "
+                        << "torch::cuda::is_available() returned false! "
+                        << "Falling back to CPU." << std::endl;
+        }
+        m_impl->device = torch::kCPU;
+    }
     m_impl->model.eval();
 }
 
@@ -48,22 +48,35 @@ void FlowModelBridge::step(const float* xt, const float* c,
     }
     torch::NoGradGuard no_grad;
 
-    // auto x_t_tensor = torch::from_blob((void*)xt, {1, 2}, torch::kFloat32).clone().to(m_impl->device);
-    // auto c_tensor   = torch::from_blob((void*)c,   {1, 6}, torch::kFloat32).clone().to(m_impl->device);
-    // auto t0 = torch::tensor(t_start).to(m_impl->device);
-    // auto t1 = torch::tensor(t_end).to(m_impl->device);
-    auto x_t_tensor = torch::from_blob((void*)xt, {1, 2}, torch::kFloat32).clone();
     auto c_tensor   = torch::from_blob((void*)c,   {1, 6}, torch::kFloat32).clone();
-    auto t0 = torch::tensor(t_start);
-    auto t1 = torch::tensor(t_end);
+    auto logit = m_impl->model.get_method("forward")({c_tensor}).toTensor();
 
-    auto result = m_impl->model.get_method("step")(
-        {x_t_tensor, c_tensor, t0, t1}).toTensor();
+    // 如果訓練時用 BCEWithLogitsLoss,forward 輸出是 raw logit,需要自己套 sigmoid
+    auto prob = torch::sigmoid(logit);
 
-    auto result_cpu = result.to(torch::kCPU).contiguous();
-    const float* ptr = result_cpu.data_ptr<float>();
-    out_xt[0] = ptr[0];
-    out_xt[1] = ptr[1];
+    // 依照你們討論過的 threshold trade-off(FN 代價高於 FP,建議 < 0.5)
+    constexpr float kThreshold = 0.5f;  // 待用 PR curve 決定實際值
+    bool is_visible = prob.item<float>() > kThreshold;
+}
+
+void FlowModelBridge::vis_forward(const float* input_data, int* output, int data_size) {
+    if (!m_impl->loaded) {
+        throw std::runtime_error("FlowModelBridge: model not loaded");
+    }
+    torch::NoGradGuard no_grad;
+
+    auto c_tensor   = torch::from_blob((void*)input_data,   {data_size, 6}, torch::kFloat32).to(m_impl->device, false);
+    auto logit = m_impl->model.get_method("forward")({c_tensor}).toTensor();
+
+    // 如果訓練時用 BCEWithLogitsLoss,forward 輸出是 raw logit,需要自己套 sigmoid
+    auto prob = torch::sigmoid(logit).squeeze(-1);
+
+    // 依照你們討論過的 threshold trade-off(FN 代價高於 FP,建議 < 0.5)
+    constexpr float kThreshold = 0.5f;  // 待用 PR curve 決定實際值
+    auto pred = (prob > kThreshold).to(torch::kInt32).contiguous().to(torch::kCPU);
+
+    // 把結果寫回呼叫端提供的 output buffer
+    std::memcpy(output, pred.data_ptr<int32_t>(), data_size * sizeof(int32_t));
 }
 
 FlowModelBridge::~FlowModelBridge() { delete m_impl; }
@@ -102,6 +115,11 @@ FM_BRIDGE_API void torch_test_model(const char* path){
     // std::cout << "[torch_test_flow_step] output = ("
     //         << out[0] << ", " << out[1] << ")" << std::endl;
 
+}
+
+FM_BRIDGE_API void torch_test_vismodel(float* input_data, int* output, int data_size){
+    auto &w = FlowModelBridge::instance(nullptr); // 使用已經載入的模型
+    w.vis_forward(input_data, output, data_size);
 }
 
 } // extern "C"

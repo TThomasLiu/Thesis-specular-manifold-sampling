@@ -2,7 +2,6 @@
 #include <mitsuba/render/microfacet.h>
 #include <mitsuba/render/scene.h>
 #include <mitsuba/render/sampler.h>
-#include <mitsuba/render/torch_bridge/torch_bridge.h>
 #include <iomanip>
 
 NAMESPACE_BEGIN(mitsuba)
@@ -33,14 +32,14 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
         // std::cout<<&w<<std::endl;
         // std::cout<<"[flow_manifold_ms] Loading flow model for shape " << shape_idx << ": " << specular_shape->flow_model_path() << std::endl;
         // if (!specular_shape->flow_model_path().empty()) {
-        //     torch_test_model(specular_shape->flow_model_path().c_str());
+        //     torch_load_model(specular_shape->flow_model_path().c_str());
         // }
     }
 }
 
 MTS_VARIANT Spectrum
 FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(const SurfaceInteraction3f &si,
-                                                                          ref<Sampler> sampler) {
+                                                                          ref<Sampler> sampler, const EmitterInteraction& ei, const int external_enable) {
     ScopedPhase scope_phase(ProfilerPhase::SMSCaustics);
 
     /* Regarding the N-bounce implementation and the seed path sampling:
@@ -87,12 +86,12 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
        offset normals don't make sense).
        */
 
-    if (unlikely(!si.is_valid())) {
+    if (unlikely(!si.is_valid() || !external_enable)) {
         return 0.f;
     }
 
     // Sample emitter interaction
-    EmitterInteraction ei = SpecularManifold::sample_emitter_interaction(si, m_scene->caustic_emitters_multi_scatter(), sampler);
+    // EmitterInteraction ei = SpecularManifold::sample_emitter_interaction(si, m_scene->caustic_emitters_multi_scatter(), sampler);
 
     // For each specular shape, perform one estimate
     auto shapes = m_scene->caustic_casters_multi_scatter();
@@ -111,35 +110,52 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
             // Unbiased SMS
 
             // Sample a single path
-            bool success = sample_path(specular_shape, si, ei, sampler, true);
-            if (!success) {
-                stats_solver_failed++;
-                continue;
-            }
-            stats_solver_succeeded++;
-            Vector3f direction = normalize(m_current_path[0].p - si.p);
+            // {
+            //     ScopedPhase scope_phase(ProfilerPhase::SMSVisCheck);
+            //     bool success = sample_path(specular_shape, si, ei, sampler, true);
+            //     if (!success) {
+            //         stats_solver_failed++;
+            //         continue;
+            //     }
+            // }
+            // stats_solver_succeeded++;
+            Vector3f direction; //= normalize(m_current_path[0].p - si.p);
 
             // We sampled a valid path, now compute its contribution. This also checks for visibility.
-            Spectrum specular_val = evaluate_path_contribution(si, ei);
+            Spectrum specular_val;// = evaluate_path_contribution(si, ei);
 
             // Account for BSDF at shading point
             BSDFContext ctx;
-            Spectrum bsdf_val = si.bsdf()->eval(ctx, si, si.to_local(direction));
+            Spectrum bsdf_val; //= si.bsdf()->eval(ctx, si, si.to_local(direction));
 
             // Now estimate the (inverse) probability of this whole process with Bernoulli trials
             Float inv_prob_estimate = 1.f;
             int iterations = 1;
             stats_bernoulli_trial_calls++;
+            bool first = true;
             while (true) {
                 ScopedPhase scope_phase(ProfilerPhase::SMSCausticsBernoulliTrials);
 
-                bool success_trial = sample_path(specular_shape, si, ei, sampler, false);
-                Vector3f direction_trial = normalize(m_current_path[0].p - si.p);
-                if (success_trial && abs(dot(direction, direction_trial) - 1.f) < m_config.uniqueness_threshold) {
+                bool success_trial = sample_path(specular_shape, si, ei, sampler, first);
+                
+                if (first && success_trial) {
+                    direction = normalize(m_current_path[0].p - si.p);
+                    specular_val = evaluate_path_contribution(si, ei);
+                    bsdf_val = si.bsdf()->eval(ctx, si, si.to_local(direction));
+                    stats_solver_succeeded++;
+                    first = false;
+                }else if (!first){
+                    // bool success_trial = sample_path(specular_shape, si, ei, sampler, false);
+                    Vector3f direction_trial = normalize(m_current_path[0].p - si.p);
+                    if (success_trial && abs(dot(direction, direction_trial) - 1.f) < m_config.uniqueness_threshold) {
+                        break;
+                    }
+                    inv_prob_estimate += 1.f;
+                }else if (iterations > 3){
+                    inv_prob_estimate = 0.f;
+                    stats_solver_failed++;
                     break;
                 }
-
-                inv_prob_estimate += 1.f;
                 iterations++;
 
                 if (m_config.max_trials > 0 && iterations > m_config.max_trials) {
@@ -155,7 +171,11 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
             update_max(stats_bernoulli_trial_iterations_max, iterations);
 
             // Contribution
-            value = bsdf_val * specular_val * inv_prob_estimate;
+            if(inv_prob_estimate == 0){
+                value = 0.f;
+            }else{
+                value = bsdf_val * specular_val * inv_prob_estimate;
+            }
         } else {
             // Biased SMS
 
