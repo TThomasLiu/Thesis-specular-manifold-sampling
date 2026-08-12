@@ -6,6 +6,7 @@ NAMESPACE_BEGIN(mitsuba)
 
 struct FlowSMSConfig {
     bool visnet_enable;
+    float visnet_rr_threshold;
 };
 
 /// Datastructure handling specular manifold sampling in the multi-bounce case.

@@ -23,6 +23,7 @@
 
     <default name="model_device"                    value="gpu"/>
     <default name="visnet_enable"                   value="true"/>
+    <default name="visnet_rr_threshold"             value="0.3"/>
 
     <default name="caustics_bounces"                value="2"/>
 
@@ -44,9 +45,9 @@
         <integer name="max_trials"              value="$caustics_max_trials"/>
         <integer name="bounces"                 value="$caustics_bounces"/>
 
-        <integer name="vis_trial"                value="$caustics_vis_trial"/>
         <string  name="model_device"             value="$model_device"/>
         <boolean name="visnet_enable"            value="$visnet_enable"/>
+        <float   name="visnet_rr_threshold"      value="$visnet_rr_threshold"/>
 
         <boolean name="biased_mnee" value="$biased_mnee"/>
     </integrator>
