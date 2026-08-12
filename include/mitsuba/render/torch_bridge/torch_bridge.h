@@ -10,10 +10,7 @@
 class FM_BRIDGE_API FlowModelBridge {
 public:
     static FlowModelBridge& instance(const char* path);
-
-    void step(const float* xt, const float* c,
-                            float t_start, float t_end,
-                            float* out_xt);
+    
     void vis_forward(const float* input_data, int* output, int data_size);
         ~FlowModelBridge();
 private:
@@ -26,10 +23,7 @@ private:
 extern "C" {
 #endif
 
-void torch_sanity_check(void);
-
 void torch_load_model(const char* path);
-void torch_test_model(const char* path);
 void torch_test_vismodel(float* input_data, int* output, int data_size);
 
 #ifdef __cplusplus

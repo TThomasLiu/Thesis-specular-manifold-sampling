@@ -150,6 +150,7 @@ public:
     static void print_statistics();
 
 protected:
+    static std::atomic<int> stats_external_reject;
     static std::atomic<int> stats_solver_failed;
     static std::atomic<int> stats_solver_succeeded;
     static std::atomic<int> stats_bernoulli_trial_calls;

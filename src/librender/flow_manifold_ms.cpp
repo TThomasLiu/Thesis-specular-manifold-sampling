@@ -11,6 +11,7 @@ inline void update_max(std::atomic<T> & atom, const T val) {
   for(T atom_val=atom; atom_val < val && !atom.compare_exchange_weak(atom_val, val, std::memory_order_relaxed););
 }
 
+MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_external_reject(0);
 MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_failed(0);
 MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_succeeded(0);
 MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_calls(0);
@@ -86,7 +87,12 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
        offset normals don't make sense).
        */
 
-    if (unlikely(!si.is_valid() || !external_enable)) {
+    if (unlikely(!si.is_valid())) {
+        return 0.f;
+    }
+
+    if(!external_enable){
+        stats_external_reject++;
         return 0.f;
     }
 
@@ -151,7 +157,7 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
                         break;
                     }
                     inv_prob_estimate += 1.f;
-                }else if (iterations > 3){
+                }else if (iterations > 0){
                     inv_prob_estimate = 0.f;
                     stats_solver_failed++;
                     break;
@@ -1315,6 +1321,9 @@ MTS_VARIANT void FlowSpecularManifoldMultiScatter<Float, Spectrum>::print_statis
     std::cout << std::setw(25) << std::left << "Solver failed: "
               << std::setw(10) << std::right << stats_solver_failed << " "
               << std::setw(8) << "(" << 100*solver_fail_ratio << "%)" << std::endl;
+    std::cout << std::setw(25) << std::left << "External rejects: "
+              << std::setw(10) << std::right << stats_external_reject << " "
+              << std::setw(8) << "(" << 100*Float(stats_external_reject) / (stats_solver_succeeded + stats_solver_failed + stats_external_reject) << "%)" << std::endl;
     std::cout << std::endl;
 
     Float stats_booth_avg_iterations = Float(stats_bernoulli_trial_iterations) / stats_bernoulli_trial_calls;

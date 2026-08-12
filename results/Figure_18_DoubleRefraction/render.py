@@ -20,7 +20,7 @@ timeout = 5
 crop_s = 1080
 crop_x = 420
 crop_y = 0
-block_size = 64
+block_size = 1024
 
 name = "slab_pt"
 cmd = "mitsuba "
