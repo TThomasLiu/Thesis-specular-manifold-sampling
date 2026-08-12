@@ -20,21 +20,16 @@ MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::
 
 MTS_VARIANT void
 FlowSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
-                                                    const SMSConfig &config) {
+                                                    const SMSConfig &config,
+                                                    const FlowSMSConfig &flow_config) {
     m_scene = scene;
     m_config = config;
-    // torch_sanity_check();
+    m_flow_config = flow_config;
 
-    // std::cout<<"aaaaa"<<std::endl;
     auto shapes = m_scene->caustic_casters_multi_scatter();
-    for (size_t shape_idx = 0; shape_idx < shapes.size(); ++shape_idx) {
-        const ShapePtr specular_shape = shapes[shape_idx];
-        // auto w = FlowModelBridge::instance();
-        // std::cout<<&w<<std::endl;
-        // std::cout<<"[flow_manifold_ms] Loading flow model for shape " << shape_idx << ": " << specular_shape->flow_model_path() << std::endl;
-        // if (!specular_shape->flow_model_path().empty()) {
-        //     torch_load_model(specular_shape->flow_model_path().c_str());
-        // }
+    
+    if(shapes.size() > 1){
+        throw std::runtime_error("FlowSpecularManifoldMultiScatter: Only one specular shape is currently supported for multi-bounce SMS.");
     }
 }
 
@@ -91,7 +86,7 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
         return 0.f;
     }
 
-    if(!external_enable){
+    if(!external_enable && m_flow_config.visnet_enable){
         stats_external_reject++;
         return 0.f;
     }
@@ -116,52 +111,43 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
             // Unbiased SMS
 
             // Sample a single path
-            // {
-            //     ScopedPhase scope_phase(ProfilerPhase::SMSVisCheck);
-            //     bool success = sample_path(specular_shape, si, ei, sampler, true);
-            //     if (!success) {
-            //         stats_solver_failed++;
-            //         continue;
-            //     }
-            // }
-            // stats_solver_succeeded++;
-            Vector3f direction; //= normalize(m_current_path[0].p - si.p);
+            {
+                ScopedPhase scope_phase(ProfilerPhase::SMSVisCheck);
+                bool success = false;
+                
+                for (int i = 0; i < m_flow_config.vis_trial; ++i) {
+                    success = sample_path(specular_shape, si, ei, sampler, true);
+                    if (success) break;
+                }
+                if (!success) {
+                    stats_solver_failed++;
+                    continue;
+                }
+            }
+            stats_solver_succeeded++;
+            Vector3f direction = normalize(m_current_path[0].p - si.p);
 
             // We sampled a valid path, now compute its contribution. This also checks for visibility.
-            Spectrum specular_val;// = evaluate_path_contribution(si, ei);
+            Spectrum specular_val = evaluate_path_contribution(si, ei);
 
             // Account for BSDF at shading point
             BSDFContext ctx;
-            Spectrum bsdf_val; //= si.bsdf()->eval(ctx, si, si.to_local(direction));
+            Spectrum bsdf_val = si.bsdf()->eval(ctx, si, si.to_local(direction));
 
             // Now estimate the (inverse) probability of this whole process with Bernoulli trials
             Float inv_prob_estimate = 1.f;
             int iterations = 1;
             stats_bernoulli_trial_calls++;
-            bool first = true;
             while (true) {
                 ScopedPhase scope_phase(ProfilerPhase::SMSCausticsBernoulliTrials);
-
-                bool success_trial = sample_path(specular_shape, si, ei, sampler, first);
                 
-                if (first && success_trial) {
-                    direction = normalize(m_current_path[0].p - si.p);
-                    specular_val = evaluate_path_contribution(si, ei);
-                    bsdf_val = si.bsdf()->eval(ctx, si, si.to_local(direction));
-                    stats_solver_succeeded++;
-                    first = false;
-                }else if (!first){
-                    // bool success_trial = sample_path(specular_shape, si, ei, sampler, false);
-                    Vector3f direction_trial = normalize(m_current_path[0].p - si.p);
-                    if (success_trial && abs(dot(direction, direction_trial) - 1.f) < m_config.uniqueness_threshold) {
-                        break;
-                    }
-                    inv_prob_estimate += 1.f;
-                }else if (iterations > 0){
-                    inv_prob_estimate = 0.f;
-                    stats_solver_failed++;
+                bool success_trial = sample_path(specular_shape, si, ei, sampler, false);
+                Vector3f direction_trial = normalize(m_current_path[0].p - si.p);
+                if (success_trial && abs(dot(direction, direction_trial) - 1.f) < m_config.uniqueness_threshold) {
                     break;
                 }
+                inv_prob_estimate += 1.f;
+                
                 iterations++;
 
                 if (m_config.max_trials > 0 && iterations > m_config.max_trials) {

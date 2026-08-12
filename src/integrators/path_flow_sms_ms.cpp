@@ -209,6 +209,18 @@ public:
         m_sms_config.bounces                = props.int_("bounces", 2);
 
         m_biased_mnee                  = props.bool_("biased_mnee", false);
+
+        m_flow_sms_config.vis_trial     = props.int_("vis_trial", 2);
+        m_flow_sms_config.visnet_enable = props.bool_("visnet_enable", false);
+
+        std::string model_device = props.string("model_device", "gpu");
+        if (model_device == "gpu") {
+            m_device_gpu = true;
+        } else if (model_device == "cpu") {
+            m_device_gpu = false;
+        } else {
+            Throw("Invalid model_device '%s'! Should be either 'gpu' or 'cpu'.", model_device);
+        }
     }
 
     bool render(Scene *scene, Sensor *sensor) override {
@@ -216,7 +228,7 @@ public:
         for (size_t shape_idx = 0; shape_idx < shapes.size(); ++shape_idx) {
             const ShapePtr specular_shape = shapes[shape_idx];
             if (!specular_shape->flow_model_path().empty()) {
-                torch_load_model(specular_shape->flow_model_path().c_str());
+                torch_load_model(specular_shape->flow_model_path().c_str(), m_device_gpu);
             }
         }
 
@@ -447,6 +459,8 @@ public:
     MTS_DECLARE_CLASS()
 protected:
     SMSConfig m_sms_config;
+    FlowSMSConfig m_flow_sms_config;
+    bool m_device_gpu;
     bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
     
     // sample
@@ -661,11 +675,6 @@ protected:
         ScalarFloat diff_scale_factor = rsqrt((ScalarFloat) sampler->sample_count());
         diff_scale_factor = max(diff_scale_factor, m_glint_diff_scale_factor_clamp);
 
-        // auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
-        // mf.init(scene, m_sms_config);
-        // auto &mnee = (MNEEHelper &)tl_mnee;
-        // mnee.init(scene, m_sms_config);
-
 
         // sample
         for(int sample_idx = 0 ; sample_idx < sample_count; sample_idx++){
@@ -748,11 +757,14 @@ protected:
                         [&](const tbb::blocked_range<size_t> &range) {
                             for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
                                 WaveVariables& variable_set = wave_variables[i];
+                                variable_set.ei = SpecularManifold::sample_emitter_interaction(variable_set.si, scene->caustic_emitters_multi_scatter(), variable_set.sampler);
+                                
+                                if (!m_flow_sms_config.visnet_enable) continue;
+                                
                                 if(variable_set.model_index == -1){
                                     continue;
                                 }
 
-                                variable_set.ei = SpecularManifold::sample_emitter_interaction(variable_set.si, scene->caustic_emitters_multi_scatter(), variable_set.sampler);
                                 int index = variable_set.model_index * 6;
                                 model_inputs[index + 0] = variable_set.ei.p.x();
                                 model_inputs[index + 1] = variable_set.ei.p.y();
@@ -768,7 +780,7 @@ protected:
                 // model run
                 {
                     ScopedPhase scope_phase(ProfilerPhase::TorchModelRun);
-                    if (SMS_enable_count > 0){
+                    if (SMS_enable_count > 0 && m_flow_sms_config.visnet_enable) {
                         torch_test_vismodel(model_inputs.data(), model_outputs.data(), SMS_enable_count);
                     }
                 }
@@ -781,17 +793,20 @@ protected:
                         scoped_flush_denormals flush_denormals(true);
 
                         auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
-                        mf.init(scene, m_sms_config);
+                        mf.init(scene, m_sms_config, m_flow_sms_config);
                         auto &mnee = (MNEEHelper &)tl_mnee;
                         mnee.init(scene, m_sms_config);
 
                         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
                             WaveVariables& variable_set = wave_variables[i];
-                            if (variable_set.model_index == -1){
-                                variable_set.enable = false;
-                            }else{
-                                variable_set.enable = model_outputs[variable_set.model_index];
+                            if (m_flow_sms_config.visnet_enable) {   
+                                if (variable_set.model_index == -1){
+                                    variable_set.enable = false;
+                                }else{
+                                    variable_set.enable = model_outputs[variable_set.model_index];
+                                }
                             }
+
                             bounce_step(mf, mnee, variable_set, depth, sensor->medium(), scene);
                         }
                     }

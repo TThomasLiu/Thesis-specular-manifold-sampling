@@ -21,6 +21,10 @@
     <default name="caustics_uniqueness_threshold"   value="0.00001"/>
     <default name="caustics_max_trials"             value="10000000"/>
 
+    <default name="caustics_vis_trial"              value="1"/>
+    <default name="model_device"                    value="gpu"/>
+    <default name="visnet_enable"                   value="true"/>
+
     <default name="caustics_bounces"                value="2"/>
 
     <default name="biased_mnee" value="false"/>
@@ -40,6 +44,10 @@
         <float   name="uniqueness_threshold"    value="$caustics_uniqueness_threshold"/>
         <integer name="max_trials"              value="$caustics_max_trials"/>
         <integer name="bounces"                 value="$caustics_bounces"/>
+
+        <integer name="vis_trial"                value="$caustics_vis_trial"/>
+        <string  name="model_device"             value="$model_device"/>
+        <boolean name="visnet_enable"            value="$visnet_enable"/>
 
         <boolean name="biased_mnee" value="$biased_mnee"/>
     </integrator>

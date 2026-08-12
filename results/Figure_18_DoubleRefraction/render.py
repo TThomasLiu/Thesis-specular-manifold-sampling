@@ -75,7 +75,7 @@ cmd = "mitsuba "
 cmd += "slab_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
 # cmd += "-Dspp=999999999 "
-cmd += "-Dspp=1 "
+cmd += "-Dspp=100 "
 cmd += "-Dsamples_per_pass=1 "
 # cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcrop_offset_x={} ".format(crop_x)
@@ -84,6 +84,24 @@ cmd += "-Dcaustics_biased=false "
 # cmd += "-Dcaustics_max_trials={} ".format(8)
 cmd += "-Dcrop_width={} ".format(crop_s)
 cmd += "-Dcrop_height={} ".format(crop_s)
+# run_cmd(cmd, name)
+
+name = "slab_flow_sms_vis_test"
+cmd = "mitsuba "
+cmd += "slab_flow_sms.xml "
+cmd += "-o results/{}.exr ".format(name)
+# cmd += "-Dspp=999999999 "
+cmd += "-Dspp=10 "
+cmd += "-Dsamples_per_pass=1 "
+# cmd += "-Dtimeout={} ".format(timeout)
+cmd += "-Dcaustics_biased=false "
+
+cmd += "-Dmodel_device=cpu "
+cmd += "-Dvisnet_enable=true "
+cmd += "-Dcaustics_vis_trial=1 "
+
+cmd += "-Dblock_size={} ".format(block_size)
+print(cmd)
 run_cmd(cmd, name)
 
 name = "slab_flow_sms_test"
@@ -91,15 +109,14 @@ cmd = "mitsuba "
 cmd += "slab_flow_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
 # cmd += "-Dspp=999999999 "
-cmd += "-Dspp=1 "
+cmd += "-Dspp=10 "
 cmd += "-Dsamples_per_pass=1 "
 # cmd += "-Dtimeout={} ".format(timeout)
-cmd += "-Dcrop_offset_x={} ".format(crop_x)
-cmd += "-Dcrop_offset_y={} ".format(crop_y)
 cmd += "-Dcaustics_biased=false "
-# cmd += "-Dcaustics_max_trials={} ".format(8)
-cmd += "-Dcrop_width={} ".format(crop_s)
-cmd += "-Dcrop_height={} ".format(crop_s)
+
+cmd += "-Dvisnet_enable=false "
+cmd += "-Dcaustics_vis_trial=1 "
+
 cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
 run_cmd(cmd, name)

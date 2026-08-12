@@ -11,17 +11,23 @@ struct FlowModelBridge::Impl {
     torch::Device device = torch::kCUDA;
 };
 
-FlowModelBridge& FlowModelBridge::instance(const char* path) {
-    static FlowModelBridge inst(path);   // turn 155 的 Meyer's Singleton,寫法完全一致
+FlowModelBridge& FlowModelBridge::instance(const char* path, bool use_gpu) {
+    static FlowModelBridge inst(path, use_gpu);   // turn 155 的 Meyer's Singleton,寫法完全一致
     return inst;
 }
 
-FlowModelBridge::FlowModelBridge(const char* path) {
+FlowModelBridge::FlowModelBridge(const char* path, bool use_gpu) {
     // torch::set_num_threads(1);     
     std::cout<<"constructor"<<std::endl;
     m_impl = new Impl();
     m_impl->model = torch::jit::load(path);
-    m_impl->model.to(torch::kCUDA);
+
+    if (use_gpu){
+        m_impl->model.to(torch::kCUDA);
+    }else{
+        m_impl->model.to(torch::kCPU);
+    }
+
     m_impl->loaded = true;
 
     if (m_impl->device == torch::kCUDA && torch::cuda::is_available()) {
@@ -64,8 +70,8 @@ FlowModelBridge::~FlowModelBridge() { delete m_impl; }
 
 extern "C" {
 
-FM_BRIDGE_API void torch_load_model(const char* path){
-    auto &w = FlowModelBridge::instance(path);
+FM_BRIDGE_API void torch_load_model(const char* path, bool use_gpu){
+    auto &w = FlowModelBridge::instance(path, use_gpu);
 }
 
 FM_BRIDGE_API void torch_test_vismodel(float* input_data, int* output, int data_size){

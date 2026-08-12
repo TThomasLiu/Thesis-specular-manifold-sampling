@@ -4,6 +4,11 @@
 
 NAMESPACE_BEGIN(mitsuba)
 
+struct FlowSMSConfig {
+    int vis_trial;
+    bool visnet_enable;
+};
+
 /// Datastructure handling specular manifold sampling in the multi-bounce case.
 template <typename Float, typename Spectrum>
 class MTS_EXPORT_RENDER FlowSpecularManifoldMultiScatter /* : public Object */ {
@@ -23,7 +28,7 @@ public:
     //           Main functionality, to be called from integrators
     // ========================================================================}
 
-    void init(const Scene *scene, const SMSConfig &config);
+    void init(const Scene *scene, const SMSConfig &config, const FlowSMSConfig &flow_config);
 
     /**
      * \brief Perform specular manifold sampling, with parameters based on the
@@ -161,6 +166,7 @@ protected:
 protected:
     const Scene *m_scene = nullptr;
     SMSConfig m_config;
+    FlowSMSConfig m_flow_config;
 
     std::vector<ManifoldVertex> m_seed_path, m_current_path, m_proposed_path;
     std::vector<Point3f> m_proposed_positions;
