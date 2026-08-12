@@ -21,7 +21,6 @@
     <default name="caustics_uniqueness_threshold"   value="0.00001"/>
     <default name="caustics_max_trials"             value="10000000"/>
 
-    <default name="caustics_vis_trial"              value="1"/>
     <default name="model_device"                    value="gpu"/>
     <default name="visnet_enable"                   value="true"/>
 

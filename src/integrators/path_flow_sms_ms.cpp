@@ -210,7 +210,6 @@ public:
 
         m_biased_mnee                  = props.bool_("biased_mnee", false);
 
-        m_flow_sms_config.vis_trial     = props.int_("vis_trial", 2);
         m_flow_sms_config.visnet_enable = props.bool_("visnet_enable", false);
 
         std::string model_device = props.string("model_device", "gpu");
@@ -755,6 +754,7 @@ protected:
                     tbb::parallel_for(
                         tbb::blocked_range<size_t>(0, pixel_count, 1),
                         [&](const tbb::blocked_range<size_t> &range) {
+                            ScopedSetThreadEnvironment set_env(env);
                             for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
                                 WaveVariables& variable_set = wave_variables[i];
                                 variable_set.ei = SpecularManifold::sample_emitter_interaction(variable_set.si, scene->caustic_emitters_multi_scatter(), variable_set.sampler);

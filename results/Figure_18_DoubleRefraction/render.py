@@ -96,9 +96,8 @@ cmd += "-Dsamples_per_pass=1 "
 # cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
 
-cmd += "-Dmodel_device=cpu "
+cmd += "-Dmodel_device=gpu "
 cmd += "-Dvisnet_enable=true "
-cmd += "-Dcaustics_vis_trial=1 "
 
 cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
@@ -115,7 +114,6 @@ cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dcaustics_biased=false "
 
 cmd += "-Dvisnet_enable=false "
-cmd += "-Dcaustics_vis_trial=1 "
 
 cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)

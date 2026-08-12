@@ -113,12 +113,7 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
             // Sample a single path
             {
                 ScopedPhase scope_phase(ProfilerPhase::SMSVisCheck);
-                bool success = false;
-                
-                for (int i = 0; i < m_flow_config.vis_trial; ++i) {
-                    success = sample_path(specular_shape, si, ei, sampler, true);
-                    if (success) break;
-                }
+                bool success = sample_path(specular_shape, si, ei, sampler, true);
                 if (!success) {
                     stats_solver_failed++;
                     continue;
@@ -126,21 +121,21 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
             }
             stats_solver_succeeded++;
             Vector3f direction = normalize(m_current_path[0].p - si.p);
-
+            
             // We sampled a valid path, now compute its contribution. This also checks for visibility.
             Spectrum specular_val = evaluate_path_contribution(si, ei);
-
+            
             // Account for BSDF at shading point
             BSDFContext ctx;
             Spectrum bsdf_val = si.bsdf()->eval(ctx, si, si.to_local(direction));
-
+            
             // Now estimate the (inverse) probability of this whole process with Bernoulli trials
             Float inv_prob_estimate = 1.f;
             int iterations = 1;
             stats_bernoulli_trial_calls++;
             while (true) {
                 ScopedPhase scope_phase(ProfilerPhase::SMSCausticsBernoulliTrials);
-                
+
                 bool success_trial = sample_path(specular_shape, si, ei, sampler, false);
                 Vector3f direction_trial = normalize(m_current_path[0].p - si.p);
                 if (success_trial && abs(dot(direction, direction_trial) - 1.f) < m_config.uniqueness_threshold) {
