@@ -24,60 +24,60 @@ crop_y = 0
 block_size = 1024
 # block_size = 512
 
-name = "slab_pt"
-cmd = "mitsuba "
-cmd += "slab_pt.xml "
-cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-cmd += "-Dsamples_per_pass=1 "
-cmd += "-Dtimeout={} ".format(timeout)
-cmd += "-Dcrop_offset_x={} ".format(crop_x)
-cmd += "-Dcrop_offset_y={} ".format(crop_y)
-cmd += "-Dcrop_width={} ".format(crop_s)
-cmd += "-Dcrop_height={} ".format(crop_s)
-# run_cmd(cmd, name)
+# name = "slab_pt"
+# cmd = "mitsuba "
+# cmd += "slab_pt.xml "
+# cmd += "-o results/{}.exr ".format(name)
+# cmd += "-Dspp=999999999 "
+# cmd += "-Dsamples_per_pass=1 "
+# cmd += "-Dtimeout={} ".format(timeout)
+# cmd += "-Dcrop_offset_x={} ".format(crop_x)
+# cmd += "-Dcrop_offset_y={} ".format(crop_y)
+# cmd += "-Dcrop_width={} ".format(crop_s)
+# cmd += "-Dcrop_height={} ".format(crop_s)
+# # run_cmd(cmd, name)
 
-name = "slab_mnee"
-cmd = "mitsuba "
-cmd += "slab_sms.xml "
-cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-cmd += "-Dsamples_per_pass=1 "
-cmd += "-Dtimeout={} ".format(timeout)
-cmd += "-Dcrop_offset_x={} ".format(crop_x)
-cmd += "-Dcrop_offset_y={} ".format(crop_y)
-cmd += "-Dcrop_width={} ".format(crop_s)
-cmd += "-Dcrop_height={} ".format(crop_s)
-cmd += "-Dcaustics_biased=true "
-cmd += "-Dcaustics_halfvector_constraints=true "
-cmd += "-Dcaustics_mnee_init=true "
-cmd += "-Dcaustics_max_trials=1 "
-# run_cmd(cmd, name)
+# name = "slab_mnee"
+# cmd = "mitsuba "
+# cmd += "slab_sms.xml "
+# cmd += "-o results/{}.exr ".format(name)
+# cmd += "-Dspp=999999999 "
+# cmd += "-Dsamples_per_pass=1 "
+# cmd += "-Dtimeout={} ".format(timeout)
+# cmd += "-Dcrop_offset_x={} ".format(crop_x)
+# cmd += "-Dcrop_offset_y={} ".format(crop_y)
+# cmd += "-Dcrop_width={} ".format(crop_s)
+# cmd += "-Dcrop_height={} ".format(crop_s)
+# cmd += "-Dcaustics_biased=true "
+# cmd += "-Dcaustics_halfvector_constraints=true "
+# cmd += "-Dcaustics_mnee_init=true "
+# cmd += "-Dcaustics_max_trials=1 "
+# # run_cmd(cmd, name)
 
-name = "slab_mnee_biased"
-cmd = "mitsuba "
-cmd += "slab_sms.xml "
-cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-cmd += "-Dsamples_per_pass=1 "
-cmd += "-Dtimeout={} ".format(timeout)
-cmd += "-Dcrop_offset_x={} ".format(crop_x)
-cmd += "-Dcrop_offset_y={} ".format(crop_y)
-cmd += "-Dcrop_width={} ".format(crop_s)
-cmd += "-Dcrop_height={} ".format(crop_s)
-cmd += "-Dcaustics_biased=true "
-cmd += "-Dcaustics_halfvector_constraints=true "
-cmd += "-Dcaustics_mnee_init=true "
-cmd += "-Dcaustics_max_trials=1 "
-cmd += "-Dbiased_mnee=true "
-# run_cmd(cmd, name)
+# name = "slab_mnee_biased"
+# cmd = "mitsuba "
+# cmd += "slab_sms.xml "
+# cmd += "-o results/{}.exr ".format(name)
+# cmd += "-Dspp=999999999 "
+# cmd += "-Dsamples_per_pass=1 "
+# cmd += "-Dtimeout={} ".format(timeout)
+# cmd += "-Dcrop_offset_x={} ".format(crop_x)
+# cmd += "-Dcrop_offset_y={} ".format(crop_y)
+# cmd += "-Dcrop_width={} ".format(crop_s)
+# cmd += "-Dcrop_height={} ".format(crop_s)
+# cmd += "-Dcaustics_biased=true "
+# cmd += "-Dcaustics_halfvector_constraints=true "
+# cmd += "-Dcaustics_mnee_init=true "
+# cmd += "-Dcaustics_max_trials=1 "
+# cmd += "-Dbiased_mnee=true "
+# # run_cmd(cmd, name)
 
 name = "slab_sms_test"
 cmd = "mitsuba "
 cmd += "slab_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
-# cmd += "-Dspp=999999999 "
-cmd += "-Dspp=3 "
+cmd += "-Dspp=999999999 "
+# cmd += "-Dspp=3 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcrop_offset_x={} ".format(crop_x)
@@ -92,8 +92,8 @@ name = "slab_flow_sms_vis_test"
 cmd = "mitsuba "
 cmd += "slab_flow_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-# cmd += "-Dspp=3 "
+# cmd += "-Dspp=999999999 "
+cmd += "-Dspp=5 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
@@ -110,8 +110,8 @@ name = "slab_flow_sms_test"
 cmd = "mitsuba "
 cmd += "slab_flow_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-# cmd += "-Dspp=3 "
+# cmd += "-Dspp=999999999 "
+cmd += "-Dspp=5 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
@@ -122,20 +122,20 @@ cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
 run_cmd(cmd, name)
 
-for M in [1, 2, 4, 8]:
-    name = "slab_sms_b{:02d}".format(M)
-    cmd = "mitsuba "
-    cmd += "slab_sms.xml "
-    cmd += "-o results/{}.exr ".format(name)
-    cmd += "-Dspp=999999999 "
-    cmd += "-Dsamples_per_pass=1 "
-    cmd += "-Dtimeout={} ".format(timeout)
-    cmd += "-Dcrop_offset_x={} ".format(crop_x)
-    cmd += "-Dcrop_offset_y={} ".format(crop_y)
-    cmd += "-Dcrop_width={} ".format(crop_s)
-    cmd += "-Dcrop_height={} ".format(crop_s)
-    cmd += "-Dcaustics_biased=true "
-    cmd += "-Dcaustics_max_trials={} ".format(M)
-    # run_cmd(cmd, name)
+# for M in [1, 2, 4, 8]:
+#     name = "slab_sms_b{:02d}".format(M)
+#     cmd = "mitsuba "
+#     cmd += "slab_sms.xml "
+#     cmd += "-o results/{}.exr ".format(name)
+#     cmd += "-Dspp=999999999 "
+#     cmd += "-Dsamples_per_pass=1 "
+#     cmd += "-Dtimeout={} ".format(timeout)
+#     cmd += "-Dcrop_offset_x={} ".format(crop_x)
+#     cmd += "-Dcrop_offset_y={} ".format(crop_y)
+#     cmd += "-Dcrop_width={} ".format(crop_s)
+#     cmd += "-Dcrop_height={} ".format(crop_s)
+#     cmd += "-Dcaustics_biased=true "
+#     cmd += "-Dcaustics_max_trials={} ".format(M)
+#     # run_cmd(cmd, name)
 
 print("done.")

@@ -378,6 +378,9 @@ public:
     /// Return the area sensor associated with this shape (if any)
     Sensor *sensor() { return m_sensor.get(); }
 
+    /// Return the transformation from object to world space
+    ScalarTransform4f to_object() const { return m_to_object; }
+
     /**
      * \brief Returns the number of sub-primitives that make up this shape
      * \remark The default implementation simply returns \c 1

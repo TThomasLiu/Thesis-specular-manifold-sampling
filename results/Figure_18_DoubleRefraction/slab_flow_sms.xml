@@ -104,6 +104,7 @@
         </emitter>
 
         <transform name="to_world">
+            <translate x="0.0" y="0.0" z="0.0"/>
             <rotate x="0.0" y="1.0" z="0.0" angle="$light_angle"/>
         </transform>
     </shape>

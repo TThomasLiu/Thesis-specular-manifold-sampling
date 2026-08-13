@@ -244,6 +244,7 @@ public:
             const ShapePtr specular_shape = shapes[shape_idx];
             if (!specular_shape->flow_model_path().empty()) {
                 torch_load_model(specular_shape->flow_model_path().c_str(), m_device_gpu);
+                m_to_model = specular_shape->to_object();
             }
         }
 
@@ -286,7 +287,8 @@ protected:
     FlowSMSConfig m_flow_sms_config;
     bool m_device_gpu;
     bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
-    
+    ScalarTransform4f m_to_model;
+
     // sample
     void bounce_step(FlowSpecularManifoldMultiScatter & mf, MNEEHelper & mnee, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene) const {
         if(!variable_set.active){
@@ -620,12 +622,16 @@ protected:
                                     }
     
                                     int index = variable_set.model_index * 6;
-                                    model_inputs[index + 0] = variable_set.ei.p.x();
-                                    model_inputs[index + 1] = variable_set.ei.p.y();
-                                    model_inputs[index + 2] = variable_set.ei.p.z();
-                                    model_inputs[index + 3] = variable_set.si.p.x();
-                                    model_inputs[index + 4] = variable_set.si.p.y();
-                                    model_inputs[index + 5] = variable_set.si.p.z();
+                                    Point3f p_si = variable_set.si.p;
+                                    Point3f p_ei = variable_set.ei.p;
+                                    p_si = m_to_model.transform_affine(p_si);
+                                    p_ei = m_to_model.transform_affine(p_ei);
+                                    model_inputs[index + 0] = p_ei.x();
+                                    model_inputs[index + 1] = p_ei.y();
+                                    model_inputs[index + 2] = p_ei.z();
+                                    model_inputs[index + 3] = p_si.x();
+                                    model_inputs[index + 4] = p_si.y();
+                                    model_inputs[index + 5] = p_si.z();
                                 }
                             }
                         );
@@ -823,6 +829,8 @@ protected:
             }
 
             if (!MonteCarloIntegrator::m_stop) {
+                Log(Info, "Rendering finished. %s ms", m_render_timer.value());
+
                 if (m_timeout > 0) {
                     Float spp_f = blocks_done;
                     spp_f /= spiral.block_count();
