@@ -51,7 +51,7 @@ FlowModelBridge::FlowModelBridge(const char* path, bool use_gpu) {
     // m_impl->model = torch::jit::optimize_for_inference(m_impl->model);  // 3. 最後優化
 }
 
-void FlowModelBridge::vis_forward(const float* input_data, int* output, int data_size) {
+void FlowModelBridge::vis_forward(const float* input_data, int* output, int data_size, float threshold) {
     if (!m_impl->loaded) {
         throw std::runtime_error("FlowModelBridge: model not loaded");
     }
@@ -63,7 +63,7 @@ void FlowModelBridge::vis_forward(const float* input_data, int* output, int data
 
     // 如果訓練時用 BCEWithLogitsLoss,forward 輸出是 raw logit,需要自己套 sigmoid
     
-    constexpr float kThreshold = 0.4f; 
+    float kThreshold = threshold; 
     // auto prob = torch::sigmoid(logit).squeeze(-1);
     // auto pred = (prob > kThreshold).to(torch::kInt32).contiguous().to(torch::kCPU);
     
@@ -83,9 +83,9 @@ FM_BRIDGE_API void torch_load_model(const char* path, bool use_gpu){
     auto &w = FlowModelBridge::instance(path, use_gpu);
 }
 
-FM_BRIDGE_API void torch_test_vismodel(float* input_data, int* output, int data_size){
+FM_BRIDGE_API void torch_test_vismodel(float* input_data, int* output, int data_size, float threshold){
     auto &w = FlowModelBridge::instance(nullptr); // 使用已經載入的模型
-    w.vis_forward(input_data, output, data_size);
+    w.vis_forward(input_data, output, data_size, threshold);
 }
 
 } // extern "C"

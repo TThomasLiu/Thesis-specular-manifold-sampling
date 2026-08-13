@@ -227,7 +227,8 @@ public:
 
         m_flow_sms_config.visnet_enable = props.bool_("visnet_enable", false);
         m_flow_sms_config.visnet_rr_threshold = props.float_("visnet_rr_threshold", 0.3f);
-
+        m_flow_sms_config.visnet_threshold = props.float_("visnet_threshold", 0.4f);
+        
         std::string model_device = props.string("model_device", "gpu");
         if (model_device == "gpu") {
             m_device_gpu = true;
@@ -240,11 +241,13 @@ public:
 
     bool render(Scene *scene, Sensor *sensor) override {
         auto shapes = scene->caustic_casters_multi_scatter();
-        for (size_t shape_idx = 0; shape_idx < shapes.size(); ++shape_idx) {
-            const ShapePtr specular_shape = shapes[shape_idx];
-            if (!specular_shape->flow_model_path().empty()) {
-                torch_load_model(specular_shape->flow_model_path().c_str(), m_device_gpu);
-                m_to_model = specular_shape->to_object();
+        if (m_flow_sms_config.visnet_enable){
+            for (size_t shape_idx = 0; shape_idx < shapes.size(); ++shape_idx) {
+                const ShapePtr specular_shape = shapes[shape_idx];
+                if (!specular_shape->flow_model_path().empty()) {
+                    torch_load_model(specular_shape->flow_model_path().c_str(), m_device_gpu);
+                    m_to_model = specular_shape->to_object();
+                }
             }
         }
 
@@ -626,12 +629,9 @@ protected:
                                     Point3f p_ei = variable_set.ei.p;
                                     p_si = m_to_model.transform_affine(p_si);
                                     p_ei = m_to_model.transform_affine(p_ei);
-                                    model_inputs[index + 0] = p_ei.x();
-                                    model_inputs[index + 1] = p_ei.y();
-                                    model_inputs[index + 2] = p_ei.z();
-                                    model_inputs[index + 3] = p_si.x();
-                                    model_inputs[index + 4] = p_si.y();
-                                    model_inputs[index + 5] = p_si.z();
+
+                                    memcpy(&model_inputs[index], &p_ei, sizeof(float) * 3);
+                                    memcpy(&model_inputs[index + 3], &p_si, sizeof(float) * 3);
                                 }
                             }
                         );
@@ -641,7 +641,7 @@ protected:
                     {
                         if (SMS_enable_count > 0 && m_flow_sms_config.visnet_enable) {
                             ScopedPhase scope_phase(ProfilerPhase::TorchModelRun);
-                            torch_test_vismodel(model_inputs.data(), model_outputs.data(), SMS_enable_count);
+                            torch_test_vismodel(model_inputs.data(), model_outputs.data(), SMS_enable_count, m_flow_sms_config.visnet_threshold);
                         }
                     }
                 }

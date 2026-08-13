@@ -11,7 +11,7 @@ class FM_BRIDGE_API FlowModelBridge {
 public:
     static FlowModelBridge& instance(const char* path, bool use_gpu = false);
 
-    void vis_forward(const float* input_data, int* output, int data_size);
+    void vis_forward(const float* input_data, int* output, int data_size, float threshold);
         ~FlowModelBridge();
 private:
     FlowModelBridge(const char* path, bool use_gpu);
@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 void torch_load_model(const char* path, bool use_gpu = false);
-void torch_test_vismodel(float* input_data, int* output, int data_size);
+void torch_test_vismodel(float* input_data, int* output, int data_size, float threshold = 0.4f);
 
 #ifdef __cplusplus
 }

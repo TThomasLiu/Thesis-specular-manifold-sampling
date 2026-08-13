@@ -76,8 +76,8 @@ name = "slab_sms_test"
 cmd = "mitsuba "
 cmd += "slab_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-# cmd += "-Dspp=3 "
+# cmd += "-Dspp=999999999 "
+cmd += "-Dspp=5 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcrop_offset_x={} ".format(crop_x)
@@ -101,6 +101,7 @@ cmd += "-Dcaustics_biased=false "
 cmd += "-Dmodel_device=gpu "
 cmd += "-Dvisnet_enable=true "
 cmd += "-Dvisnet_rr_threshold=0.1 "
+cmd += "-Dvisnet_threshold=0.4 "
 
 cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
