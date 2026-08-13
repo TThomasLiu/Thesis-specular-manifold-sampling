@@ -21,7 +21,7 @@ timeout = 5*60
 crop_s = 1080
 crop_x = 420
 crop_y = 0
-block_size = 512
+block_size = 1024
 # block_size = 512
 
 name = "slab_pt"
@@ -76,8 +76,8 @@ name = "slab_sms_test"
 cmd = "mitsuba "
 cmd += "slab_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-# cmd += "-Dspp=100 "
+# cmd += "-Dspp=999999999 "
+cmd += "-Dspp=3 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcrop_offset_x={} ".format(crop_x)
@@ -102,7 +102,7 @@ cmd += "-Dmodel_device=gpu "
 cmd += "-Dvisnet_enable=true "
 cmd += "-Dvisnet_rr_threshold=0.1 "
 
-cmd += "-Dblock_size={} ".format(1024)
+cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
 run_cmd(cmd, name)
 

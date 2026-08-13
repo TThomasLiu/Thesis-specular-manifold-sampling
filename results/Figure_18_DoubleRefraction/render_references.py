@@ -23,7 +23,7 @@ cmd += "-o results/{}.exr ".format(name)
 cmd += "-Dspp=999999999 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 
 # 8 hours for pt reference
 timeout = 3*60*60
@@ -35,7 +35,7 @@ cmd += "-o results/{}.exr ".format(name)
 cmd += "-Dspp=999999999 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 
 # # 8 hours for path traced reference insets
 # timeout = 8*60*60
