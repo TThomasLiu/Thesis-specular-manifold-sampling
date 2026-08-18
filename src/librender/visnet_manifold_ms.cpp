@@ -1,4 +1,4 @@
-#include <mitsuba/render/flow_manifold_ms.h>
+#include <mitsuba/render/visnet_manifold_ms.h>
 #include <mitsuba/render/microfacet.h>
 #include <mitsuba/render/scene.h>
 #include <mitsuba/render/sampler.h>
@@ -11,30 +11,30 @@ inline void update_max(std::atomic<T> & atom, const T val) {
   for(T atom_val=atom; atom_val < val && !atom.compare_exchange_weak(atom_val, val, std::memory_order_relaxed););
 }
 
-MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_external_reject(0);
-MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_failed(0);
-MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_succeeded(0);
-MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_calls(0);
-MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations(0);
-MTS_VARIANT std::atomic<int> FlowSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations_max(0);
+MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_external_reject(0);
+MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_failed(0);
+MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_succeeded(0);
+MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_calls(0);
+MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations(0);
+MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations_max(0);
 
 MTS_VARIANT void
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
                                                     const SMSConfig &config,
-                                                    const FlowSMSConfig &flow_config) {
+                                                    const VisnetSMSConfig &visnet_config) {
     m_scene = scene;
     m_config = config;
-    m_flow_config = flow_config;
+    m_visnet_config = visnet_config;
 
     auto shapes = m_scene->caustic_casters_multi_scatter();
     
     if(shapes.size() > 1){
-        throw std::runtime_error("FlowSpecularManifoldMultiScatter: Only one specular shape is currently supported for multi-bounce SMS.");
+        throw std::runtime_error("VisnetSpecularManifoldMultiScatter: Only one specular shape is currently supported for multi-bounce SMS.");
     }
 }
 
 MTS_VARIANT Spectrum
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(const SurfaceInteraction3f &si,
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(const SurfaceInteraction3f &si,
                                                                           ref<Sampler> sampler, const EmitterInteraction& ei, const int external_enable) {
     ScopedPhase scope_phase(ProfilerPhase::SMSCaustics);
 
@@ -86,7 +86,7 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
         return 0.f;
     }
 
-    if(!external_enable && m_flow_config.visnet_enable){
+    if(!external_enable && m_visnet_config.visnet_enable){
         stats_external_reject++;
         return 0.f;
     }
@@ -221,8 +221,8 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(co
     return result;
 }
 
-MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::sample_path(const ShapePtr shape,
+MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::sample_path(const ShapePtr shape,
                                                            const SurfaceInteraction3f &si,
                                                            const EmitterInteraction &ei,
                                                            ref<Sampler> sampler,
@@ -248,7 +248,7 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::sample_path(const ShapePtr sh
 }
 
 MTS_VARIANT Spectrum
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::evaluate_path_contribution(const SurfaceInteraction3f &si,
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::evaluate_path_contribution(const SurfaceInteraction3f &si,
                                                                           const EmitterInteraction &ei_) {
     ManifoldVertex &vtx_last = m_current_path[m_current_path.size() - 1];
 
@@ -298,8 +298,8 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::evaluate_path_contribution(co
     return path_throughput;
 }
 
-MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const ShapePtr shape,
+MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const ShapePtr shape,
                                                                     const SurfaceInteraction3f &si_,
                                                                     const EmitterInteraction &ei,
                                                                     ref<Sampler> sampler,
@@ -428,8 +428,8 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const ShapeP
     return true;
 }
 
-MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::newton_solver(const SurfaceInteraction3f &si,
+MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::newton_solver(const SurfaceInteraction3f &si,
                                                                  const EmitterInteraction &ei) {
     // Newton iterations..
     bool success = false;
@@ -518,8 +518,8 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::newton_solver(const SurfaceIn
     return true;
 }
 
-MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_halfvector(const Point3f &x0,
+MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_halfvector(const Point3f &x0,
                                                                            const EmitterInteraction &ei) {
     std::vector<ManifoldVertex> &v = m_current_path;
 
@@ -649,8 +649,8 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_halfvector(const
     return true;
 }
 
-MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_anglediff(const Point3f &x0,
+MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_anglediff(const Point3f &x0,
                                                                       const EmitterInteraction &ei) {
     std::vector<ManifoldVertex> &v = m_current_path;
     bool success = true;
@@ -877,8 +877,8 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_anglediff(const 
     return true;
 }
 
-MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::reproject(const SurfaceInteraction3f &si_) {
+MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::reproject(const SurfaceInteraction3f &si_) {
     m_proposed_path.clear();
     SurfaceInteraction3f si(si_);
 
@@ -939,7 +939,7 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::reproject(const SurfaceIntera
 }
 
 MTS_VARIANT Spectrum
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_reflectance(const SurfaceInteraction3f &si_,
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_reflectance(const SurfaceInteraction3f &si_,
                                                                     const EmitterInteraction &ei) const {
     if (m_current_path.size() == 0) return 0.f;
 
@@ -1044,7 +1044,7 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::specular_reflectance(const Su
 }
 
 MTS_VARIANT Float
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::geometric_term(const ManifoldVertex &vx,
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::geometric_term(const ManifoldVertex &vx,
                                                               const ManifoldVertex &vy) {
     // First assemble full path, including all endpoints (use m_proposed_path as buffer here)
     m_proposed_path.clear();
@@ -1210,8 +1210,8 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::geometric_term(const Manifold
     }
 }
 
-MTS_VARIANT typename FlowSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_step(std::vector<ManifoldVertex> &v) {
+MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_step(std::vector<ManifoldVertex> &v) {
     // Solve block tri-diagonal linear system with full RHS vector
 
     // From "The Natural-Constraint Representation of the Path Space for Efficient Light Transport Simulation"
@@ -1253,7 +1253,7 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_step(std::
 }
 
 MTS_VARIANT Float
-FlowSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_geo(std::vector<ManifoldVertex> &v) {
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_geo(std::vector<ManifoldVertex> &v) {
     // Solve block tri-diagonal linear system with RHS vector where only last element in non-zero
 
     // Procedure as outlined in original "Manifold Exploration" by Jakob and Marschner 2012.
@@ -1288,7 +1288,7 @@ FlowSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_geo(std::v
     return abs(det(-v[0].inv_lambda));
 }
 
-MTS_VARIANT void FlowSpecularManifoldMultiScatter<Float, Spectrum>::print_statistics() {
+MTS_VARIANT void VisnetSpecularManifoldMultiScatter<Float, Spectrum>::print_statistics() {
     Float solver_success_ratio = Float(stats_solver_succeeded) / (stats_solver_succeeded + stats_solver_failed),
           solver_fail_ratio    = Float(stats_solver_failed)    / (stats_solver_succeeded + stats_solver_failed);
 
@@ -1317,5 +1317,5 @@ MTS_VARIANT void FlowSpecularManifoldMultiScatter<Float, Spectrum>::print_statis
     std::cout << std::endl;
 }
 
-MTS_INSTANTIATE_CLASS(FlowSpecularManifoldMultiScatter)
+MTS_INSTANTIATE_CLASS(VisnetSpecularManifoldMultiScatter)
 NAMESPACE_END(mitsuba)

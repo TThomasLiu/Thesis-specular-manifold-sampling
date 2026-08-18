@@ -68,7 +68,7 @@ add_library(mitsuba-render-obj OBJECT
                                   ${INC_DIR}/manifold.h
   manifold_ss.cpp                 ${INC_DIR}/manifold_ss.h
   manifold_ms.cpp                 ${INC_DIR}/manifold_ms.h
-  flow_manifold_ms.cpp            ${INC_DIR}/flow_manifold_ms.h
+  visnet_manifold_ms.cpp          ${INC_DIR}/visnet_manifold_ms.h
                                   ${INC_DIR}/torch_bridge/torch_bridge.h
   manifold_glints.cpp             ${INC_DIR}/manifold_glints.h
   manifold_glints_vectorized.cpp  ${INC_DIR}/manifold_glints_vectorized.h

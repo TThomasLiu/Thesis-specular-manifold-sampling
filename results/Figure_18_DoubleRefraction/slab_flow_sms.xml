@@ -32,7 +32,7 @@
 
     <default name="biased_mnee" value="false"/>
 
-    <integrator type="path_flow_sms_ms">
+    <integrator type="path_visnet_sms_ms">
         <integer name="max_depth" value="8"/>
         <integer name="samples_per_pass" value="$samples_per_pass"/>
         <integer name="block_size" value="$block_size"/>
@@ -60,7 +60,7 @@
 
     <shape type="obj">
         <string name="filename" value="meshes/plane_1.obj"/>
-        <string name="flow_model_path" value="models/sms_fig18_all_path_3L_32h_vis.pt"/>
+        <string name="visnet_model_path" value="models/sms_fig18_all_path_3L_32h_vis.pt"/>
         <boolean name="caustic_caster_multi" value="true"/>
 
         <bsdf type="dielectric">

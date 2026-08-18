@@ -4,7 +4,7 @@
 
 NAMESPACE_BEGIN(mitsuba)
 
-struct FlowSMSConfig {
+struct VisnetSMSConfig {
     bool visnet_enable;
     int visnet_enable_threshold;
     float visnet_rr_threshold;
@@ -13,7 +13,7 @@ struct FlowSMSConfig {
 
 /// Datastructure handling specular manifold sampling in the multi-bounce case.
 template <typename Float, typename Spectrum>
-class MTS_EXPORT_RENDER FlowSpecularManifoldMultiScatter /* : public Object */ {
+class MTS_EXPORT_RENDER VisnetSpecularManifoldMultiScatter /* : public Object */ {
 public:
     MTS_IMPORT_TYPES(BSDF, Sampler, Scene, Shape)
     using BSDFPtr            = typename RenderAliases::BSDFPtr;
@@ -23,14 +23,14 @@ public:
     using SpecularManifold   = SpecularManifold<Float, Spectrum>;
 
     /// Initialize data structure
-    FlowSpecularManifoldMultiScatter() {}
-    ~FlowSpecularManifoldMultiScatter() {}
+    VisnetSpecularManifoldMultiScatter() {}
+    ~VisnetSpecularManifoldMultiScatter() {}
 
     // ========================================================================
     //           Main functionality, to be called from integrators
     // ========================================================================}
 
-    void init(const Scene *scene, const SMSConfig &config, const FlowSMSConfig &flow_config);
+    void init(const Scene *scene, const SMSConfig &config, const VisnetSMSConfig &visnet_config);
 
     /**
      * \brief Perform specular manifold sampling, with parameters based on the
@@ -168,7 +168,7 @@ protected:
 protected:
     const Scene *m_scene = nullptr;
     SMSConfig m_config;
-    FlowSMSConfig m_flow_config;
+    VisnetSMSConfig m_visnet_config;
 
     std::vector<ManifoldVertex> m_seed_path, m_current_path, m_proposed_path;
     std::vector<Point3f> m_proposed_positions;
