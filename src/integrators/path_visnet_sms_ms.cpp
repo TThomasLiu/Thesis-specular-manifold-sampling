@@ -602,7 +602,7 @@ protected:
                     // ei sampling
                     {               
                         SMS_enable_count = 0;
-                        bool sms_depth_check = (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth);
+                        // bool sms_depth_check = (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth);
                         tbb::parallel_for(
                             tbb::blocked_range<size_t>(0, active_count, 1),
                             [&](const tbb::blocked_range<size_t> &range) {
@@ -615,10 +615,10 @@ protected:
     
                                     if (!m_visnet_sms_config.visnet_enable) continue;
     
-                                    if (sms_depth_check &&
-                                        variable_set.active && 
+                                    if (variable_set.active && 
                                         variable_set.si.is_valid() && 
-                                        variable_set.si.shape->is_caustic_receiver())
+                                        variable_set.si.shape->is_caustic_receiver() &&
+                                        (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth))
                                     {
                                         
                                         variable_set.model_index = SMS_enable_count.fetch_add(1, std::memory_order_relaxed);
@@ -842,6 +842,9 @@ protected:
 
                     Log(Info, "Rendering finished. Computed %d spp and took %s.",
                         spp, util::time_string(m_render_timer.value(), true));
+                        
+                    Log(Info, "Rendering finished. %f ms / spp.",
+                        m_render_timer.value() / spp);
                 } else {
                     Log(Info, "Rendering finished. (took %s)",
                         util::time_string(m_render_timer.value(), true));
