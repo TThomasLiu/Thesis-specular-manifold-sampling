@@ -246,7 +246,7 @@ public:
             for (size_t shape_idx = 0; shape_idx < shapes.size(); ++shape_idx) {
                 const ShapePtr specular_shape = shapes[shape_idx];
                 if (!specular_shape->visnet_model_path().empty()) {
-                    torch_load_model(specular_shape->visnet_model_path().c_str(), m_device_gpu);
+                    torch_load_visnet_model(specular_shape->visnet_model_path().c_str(), m_device_gpu);
                     m_to_model = specular_shape->to_object();
                 }
             }
@@ -620,6 +620,7 @@ protected:
                                         variable_set.si.is_valid() && 
                                         variable_set.si.shape->is_caustic_receiver())
                                     {
+                                        
                                         variable_set.model_index = SMS_enable_count.fetch_add(1, std::memory_order_relaxed);
                                     }else{
                                         variable_set.model_index = -1;
@@ -643,7 +644,7 @@ protected:
                     {
                         if (SMS_enable_count > 0 && m_visnet_sms_config.visnet_enable && SMS_enable_count > m_visnet_sms_config.visnet_enable_threshold) {
                             ScopedPhase scope_phase(ProfilerPhase::TorchModelRun);
-                            torch_test_vismodel(model_inputs.data(), model_outputs.data(), SMS_enable_count, m_visnet_sms_config.visnet_threshold);
+                            torch_visnet_forward(model_inputs.data(), model_outputs.data(), SMS_enable_count, m_visnet_sms_config.visnet_threshold);
                             visnet_enable = true;
                         }
                     }

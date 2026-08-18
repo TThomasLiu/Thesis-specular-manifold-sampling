@@ -7,24 +7,26 @@
 #endif
 
 // 用純 C++ 陣列/vector 傳資料,完全不暴露 torch::Tensor 這個型別給外部
-class FM_BRIDGE_API FlowModelBridge {
+struct FM_BRIDGE_API ModelContainer;
+
+
+class FM_BRIDGE_API VisnetModelBridge {
 public:
-    static FlowModelBridge& instance(const char* path, bool use_gpu = false);
+    static VisnetModelBridge& instance(const char* path, bool use_gpu = false);
 
     void vis_forward(const float* input_data, int* output, int data_size, float threshold);
-        ~FlowModelBridge();
+        ~VisnetModelBridge();
 private:
-    FlowModelBridge(const char* path, bool use_gpu);
-    struct Impl;              // Pimpl:把 torch::jit::script::Module 藏在這裡
-    Impl* m_impl;
+    VisnetModelBridge(const char* path, bool use_gpu);
+    ModelContainer* m_impl;
 };
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void torch_load_model(const char* path, bool use_gpu = false);
-void torch_test_vismodel(float* input_data, int* output, int data_size, float threshold = 0.4f);
+void torch_load_visnet_model(const char* path, bool use_gpu = false);
+void torch_visnet_forward(float* input_data, int* output, int data_size, float threshold = 0.4f);
 
 #ifdef __cplusplus
 }

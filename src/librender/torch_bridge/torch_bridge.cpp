@@ -5,13 +5,13 @@
 
 #include <mutex>
 
-struct FlowModelBridge::Impl {
+struct FM_BRIDGE_API ModelContainer {
     torch::jit::script::Module model;
     bool loaded = false;
     torch::Device device = torch::kCUDA;
 
     void LoadModel(const char* path, bool use_gpu) {
-        std::cout<<"load model"<<std::endl;
+        // std::cout<<"load model"<<std::endl;
         
         model = torch::jit::load(path);
         model.eval();
@@ -29,11 +29,11 @@ struct FlowModelBridge::Impl {
         if (device == torch::kCUDA && torch::cuda::is_available()) {
             model.to(torch::kCUDA);
             device = torch::kCUDA;
-            std::cerr << "[FlowModelBridge] Model moved to CUDA. "
+            std::cerr << "[ModelContainer] Model moved to CUDA. "
                         << "Device count = " << torch::cuda::device_count() << std::endl;
         } else {
             if (!torch::cuda::is_available()) {
-                std::cerr << "[FlowModelBridge] WARNING: GPU requested but "
+                std::cerr << "[ModelContainer] WARNING: GPU requested but "
                             << "torch::cuda::is_available() returned false! "
                             << "Falling back to CPU." << std::endl;
             }
@@ -43,21 +43,21 @@ struct FlowModelBridge::Impl {
 
 };
 
-FlowModelBridge& FlowModelBridge::instance(const char* path, bool use_gpu) {
-    static FlowModelBridge inst(path, use_gpu);   // turn 155 的 Meyer's Singleton,寫法完全一致
+VisnetModelBridge& VisnetModelBridge::instance(const char* path, bool use_gpu) {
+    static VisnetModelBridge inst(path, use_gpu);   // turn 155 的 Meyer's Singleton,寫法完全一致
     return inst;
 }
 
-FlowModelBridge::FlowModelBridge(const char* path, bool use_gpu) {
+VisnetModelBridge::VisnetModelBridge(const char* path, bool use_gpu) {
     // torch::set_num_threads(1);     
-    std::cout<<"constructor"<<std::endl;
-    m_impl = new Impl();
+    // std::cout<<"constructor"<<std::endl;
+    m_impl = new ModelContainer();
     m_impl->LoadModel(path, use_gpu);
 }
 
-void FlowModelBridge::vis_forward(const float* input_data, int* output, int data_size, float threshold) {
+void VisnetModelBridge::vis_forward(const float* input_data, int* output, int data_size, float threshold) {
     if (!m_impl->loaded) {
-        throw std::runtime_error("FlowModelBridge: model not loaded");
+        throw std::runtime_error("VisnetModelBridge: model not loaded");
     }
     torch::NoGradGuard no_grad;
 
@@ -72,16 +72,16 @@ void FlowModelBridge::vis_forward(const float* input_data, int* output, int data
     out_tensor.copy_(mask);
 }
 
-FlowModelBridge::~FlowModelBridge() { delete m_impl; }
+VisnetModelBridge::~VisnetModelBridge() { delete m_impl; }
 
 extern "C" {
 
-FM_BRIDGE_API void torch_load_model(const char* path, bool use_gpu){
-    auto &w = FlowModelBridge::instance(path, use_gpu);
+FM_BRIDGE_API void torch_load_visnet_model(const char* path, bool use_gpu){
+    auto &w = VisnetModelBridge::instance(path, use_gpu);
 }
 
-FM_BRIDGE_API void torch_test_vismodel(float* input_data, int* output, int data_size, float threshold){
-    auto &w = FlowModelBridge::instance(nullptr); // 使用已經載入的模型
+FM_BRIDGE_API void torch_visnet_forward(float* input_data, int* output, int data_size, float threshold){
+    auto &w = VisnetModelBridge::instance(nullptr); // 使用已經載入的模型
     w.vis_forward(input_data, output, data_size, threshold);
 }
 
