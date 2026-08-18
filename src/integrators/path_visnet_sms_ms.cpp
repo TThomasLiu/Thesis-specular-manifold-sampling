@@ -856,5 +856,5 @@ protected:
 };
 
 MTS_IMPLEMENT_CLASS_VARIANT(VisnetMultiScatterSMSPathIntegrator, MonteCarloIntegrator)
-MTS_EXPORT_PLUGIN(VisnetMultiScatterSMSPathIntegrator, "Flow Multi-Bounce SMS Path Tracer integrator");
+MTS_EXPORT_PLUGIN(VisnetMultiScatterSMSPathIntegrator, "Visnet Multi-Bounce SMS Path Tracer integrator");
 NAMESPACE_END(mitsuba)
