@@ -226,6 +226,7 @@ public:
         m_biased_mnee                  = props.bool_("biased_mnee", false);
 
         m_flow_sms_config.visnet_enable = props.bool_("visnet_enable", false);
+        m_flow_sms_config.visnet_enable_threshold = props.int_("visnet_enable_threshold", 10000);
         m_flow_sms_config.visnet_rr_threshold = props.float_("visnet_rr_threshold", 0.3f);
         m_flow_sms_config.visnet_threshold = props.float_("visnet_threshold", 0.4f);
         
@@ -582,6 +583,7 @@ protected:
 
             // depth loop
             for(int depth = 0; depth < m_max_depth; depth++){
+                bool visnet_enable = false;
                 
                 if(depth != 0){
                     // compact
@@ -639,9 +641,10 @@ protected:
                     
                     // model run
                     {
-                        if (SMS_enable_count > 0 && m_flow_sms_config.visnet_enable) {
+                        if (SMS_enable_count > 0 && m_flow_sms_config.visnet_enable && SMS_enable_count > m_flow_sms_config.visnet_enable_threshold) {
                             ScopedPhase scope_phase(ProfilerPhase::TorchModelRun);
                             torch_test_vismodel(model_inputs.data(), model_outputs.data(), SMS_enable_count, m_flow_sms_config.visnet_threshold);
+                            visnet_enable = true;
                         }
                     }
                 }
@@ -660,7 +663,7 @@ protected:
 
                         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
                             WaveVariables& variable_set = wave_variables[compact_map[i]];
-                            if (m_flow_sms_config.visnet_enable) {   
+                            if (visnet_enable) {   
                                 if (variable_set.model_index == -1){
                                     variable_set.enable = false;
                                 }else{

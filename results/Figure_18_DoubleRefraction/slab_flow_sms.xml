@@ -24,6 +24,7 @@
 
     <default name="model_device"                    value="gpu"/>
     <default name="visnet_enable"                   value="true"/>
+    <default name="visnet_engage_threshold"         value="10000"/>
     <default name="visnet_rr_threshold"             value="0.3"/>
     <default name="visnet_threshold"                value="0.4"/>
 
@@ -50,6 +51,7 @@
 
         <string  name="model_device"             value="$model_device"/>
         <boolean name="visnet_enable"            value="$visnet_enable"/>
+        <integer name="visnet_enable_threshold"  value="$visnet_engage_threshold"/>
         <float   name="visnet_threshold"         value="$visnet_threshold"/>
         <float   name="visnet_rr_threshold"      value="$visnet_rr_threshold"/>
 

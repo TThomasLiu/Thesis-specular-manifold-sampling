@@ -6,6 +6,7 @@ NAMESPACE_BEGIN(mitsuba)
 
 struct FlowSMSConfig {
     bool visnet_enable;
+    int visnet_enable_threshold;
     float visnet_rr_threshold;
     float visnet_threshold;
 };
