@@ -508,7 +508,6 @@ protected:
 
         // sample
         static std::vector<int> compact_map (pixel_count);
-        static std::vector<int> temp_compact_map (pixel_count);
         static std::vector<WaveVariables> wave_variables(pixel_count);
         static std::vector<float> model_inputs (pixel_count * 6);
         static std::vector<int> model_outputs (pixel_count);
@@ -603,6 +602,7 @@ protected:
                     // ei sampling
                     {               
                         SMS_enable_count = 0;
+                        bool sms_depth_check = (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth);
                         tbb::parallel_for(
                             tbb::blocked_range<size_t>(0, active_count, 1),
                             [&](const tbb::blocked_range<size_t> &range) {
@@ -615,10 +615,10 @@ protected:
     
                                     if (!m_visnet_sms_config.visnet_enable) continue;
     
-                                    if ( variable_set.active && 
+                                    if (sms_depth_check &&
+                                        variable_set.active && 
                                         variable_set.si.is_valid() && 
-                                        variable_set.si.shape->is_caustic_receiver() &&
-                                        (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth))
+                                        variable_set.si.shape->is_caustic_receiver())
                                     {
                                         variable_set.model_index = SMS_enable_count.fetch_add(1, std::memory_order_relaxed);
                                     }else{
