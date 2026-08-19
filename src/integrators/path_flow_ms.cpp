@@ -175,11 +175,14 @@ protected:
 
         // wave front variables
         bool specular_camera_path = true; 
-        bool enable= true;
         float sample_weight = 1.f;
         int model_index = 0;
         int compact_index = 0;
         Float eta = 1.f;
+        
+        bool enable= true;
+        Vector3f flow_direction;
+        float flow_weight = 1.0f;
 
         Spectrum throughput;
         SurfaceInteraction3f si;
@@ -195,6 +198,8 @@ protected:
             result = 0.f;
             eta = 1.f;
             specular_camera_path = true;
+            flow_direction = Vector3f(0.f, 0.f, 0.f);
+            flow_weight = 1.0f;
             enable = true;
             sample_weight = 1.f;
             model_index = 0;
@@ -265,7 +270,7 @@ public:
             }
         }
 
-        torch_test_flow_forward();
+        // torch_test_flow_forward();
         // bool result = MonteCarloIntegrator::render(scene, sensor);
         bool result = sequential_block_render(scene, sensor);
         FlowSpecularManifoldMultiScatter::print_statistics();
@@ -310,7 +315,7 @@ protected:
     std::vector<float> m_flat_to_world;
 
     // sample
-    void bounce_step(FlowSpecularManifoldMultiScatter & mf, MNEEHelper & mnee, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene) const {
+    void bounce_step(FlowSpecularManifoldMultiScatter & mf, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene) const {
         if(!variable_set.active){
             return;
         }
@@ -327,8 +332,6 @@ protected:
             variable_set.si = scene->ray_intersect(variable_set.ray);
             variable_set.valid_ray = variable_set.si.is_valid();
             EmitterPtr emitter = variable_set.si.emitter(scene);
-            // Keep track of state regarding previous bounces in order to do unbiased MNEE
-            mnee.state_transition(variable_set.si);
 
             if (emitter) {
                 variable_set.result += emitter->eval(variable_set.si);
@@ -365,6 +368,7 @@ protected:
 
             // TODO: caustic rendering logics
 
+            // std::cout<<variable_set.enable << " " << variable_set.flow_direction << " " << variable_set.flow_weight << std::endl;
             // variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler, variable_set.ei, variable_set.enable) * variable_set.sample_weight;
         }
 
@@ -433,8 +437,6 @@ protected:
         SurfaceInteraction3f si_bsdf = scene->ray_intersect(variable_set.ray);
         EmitterPtr emitter = si_bsdf.emitter(scene);
 
-        // Keep track of state regarding previous bounces in order to do unbiased MNEE
-        mnee.state_transition(si_bsdf);
         // Hit emitter after BSDF sampling
         if (emitter && !m_sms_config.remove_pt_direct_hit) {
             /* With the same reasoning as in the emitter sampling case,
@@ -458,46 +460,6 @@ protected:
                                             0.f);
                 Float mis = mis_weight(bs.pdf, emitter_pdf);
                 variable_set.result += mis * variable_set.throughput * emitter_val;
-            } else if (m_sms_config.mnee_init && !m_biased_mnee &&
-                        mnee.is_possible()) {
-                /* These are the light paths that can be sampled with SMS.
-                    In case we're doing MNEE, only a single deterministic path
-                    can be generated though, and if we wish to stay unbiased
-                    we need to do an additional test here to see if MNEE could
-                    generate the currently found light connection as well.
-                    Note: Hanika et al. 2015 discuss a more advanced MIS strategy
-                    here that also accounts for the smooth probablility density
-                    from rough BSDFs. This could be added as well here. To
-                    support the rough case properly, the sampled half-vectors
-                    of specular paths to be tested with MNEE would need to be
-                    passed to the VisnetSpecularManifoldMultiScatter datastructure
-                    somehow. */
-
-                ShapePtr specular_shape = mnee.specular_shapes[0];
-                EmitterInteraction ei = SpecularManifold::emitter_interaction(scene, mnee.si_endpoint, si_bsdf);
-                bool success = mf.sample_path(specular_shape, mnee.si_endpoint, ei, variable_set.sampler, true);
-                if (success) {
-                    auto current_path = mf.current_path();
-                    for (size_t k = 0; k < current_path.size(); ++k) {
-                        Point3f p_pt = mnee.specular_positions[k],
-                                p_mnee = current_path[k].p;
-                        if (norm(p_pt - p_mnee) >= 1e-5f) {
-                            success = false;
-                        }
-                    }
-                }
-
-                if (!success) {
-                    /* MNEE could not find this path, so add it now.
-                        There is no MIS needed as we filtered out this class of paths
-                        in the emitter sampling strategy above. Note that the original
-                        paper about MNEE is more thorough here and does full MIS which
-                        improves the case of caustics from rough BSDFs. For simplicity
-                        we leave this out, but it could be added as well. In that
-                        case, we would also need to perform this "MNEE check" in the
-                        emitter sampling step above. */
-                    variable_set.result += variable_set.throughput * emitter->eval(si_bsdf);
-                }
             }
         }
 
@@ -668,22 +630,32 @@ protected:
                         if (SMS_enable_count > 0) {
                             ScopedPhase scope_phase(ProfilerPhase::TorchModelRun);
                             torch_visnet_forward(model_inputs.data(), model_outputs.data(), SMS_enable_count, m_visnet_sms_config.visnet_threshold);
-                            visnet_enable = true;
 
                             // create data for flow model
                             int flow_enable_count = 0;
-                            for(int i = 0 ; i < SMS_enable_count; i++){
-                                if(model_outputs[i]){
-                                    memcpy(&model_inputs[flow_enable_count * 6], &model_inputs[i * 6], sizeof(float) * 6);
+                            int visnet_count = 0;
+                            for(int i = 0 ; i < active_count; i++){
+                                WaveVariables& variable_set = wave_variables[compact_map[i]];
+                                if(variable_set.model_index == -1) continue;
+
+                                if(model_outputs[variable_set.model_index]){
+                                    memcpy(&model_inputs[flow_enable_count * 6], &model_inputs[variable_set.model_index * 6], sizeof(float) * 6);
+                                    variable_set.model_index = flow_enable_count;
+                                    variable_set.enable = true;
                                     flow_enable_count++;
+                                }else{
+                                    variable_set.enable = false;
+                                    variable_set.model_index = -1;
                                 }
+
+                                visnet_count++;
                             }
+
+
 
                             std::cout<<"flow_enable_count: "<<flow_enable_count<<std::endl;
                             if(flow_enable_count > 0){
                                 torch_flow_forward(model_inputs.data(), m_flat_to_world.data(), flow_direction.data(), flow_direction_weight.data(), flow_enable_count, 10);
-    
-                                std::cout<< flow_direction[0]<<" "<<flow_direction[1]<<" "<<flow_direction[2]<<std::endl;
                                 std::cout<<"called flow model"<<std::endl;
                             }
 
@@ -700,30 +672,17 @@ protected:
                         
                         auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
                         mf.init(scene, m_sms_config, m_visnet_sms_config);
-                        auto &mnee = (MNEEHelper &)tl_mnee;
-                        mnee.init(scene, m_sms_config);
 
                         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
                             WaveVariables& variable_set = wave_variables[compact_map[i]];
-                            if (visnet_enable) {   
-                                if (variable_set.model_index == -1){
-                                    variable_set.enable = false;
-                                }else{
-                                    variable_set.enable = model_outputs[variable_set.model_index];
-                                    
-                                    if(!variable_set.enable){
-                                        // RR
-                                        float rr = variable_set.sampler->next_1d();
-                                        if (rr <= m_visnet_sms_config.visnet_rr_threshold){
-                                            variable_set.enable = true;
-                                            variable_set.sample_weight = 1.f / m_visnet_sms_config.visnet_rr_threshold;
-                                        }
-                                    }else{
-                                        variable_set.sample_weight = 1.f;
-                                    }
-                                }
+                            
+                            if(variable_set.model_index != -1){
+                                int model_index = variable_set.model_index;
+                                variable_set.flow_direction = Vector3f(flow_direction[model_index * 3], flow_direction[model_index * 3 + 1], flow_direction[model_index * 3 + 2]);
+                                variable_set.flow_weight = flow_direction_weight[model_index];
                             }
-                            bounce_step(mf, mnee, variable_set, depth, sensor->medium(), scene);
+
+                            bounce_step(mf, variable_set, depth, sensor->medium(), scene);
                         }
                     }
                 );
