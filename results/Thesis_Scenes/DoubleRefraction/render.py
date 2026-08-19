@@ -73,7 +73,7 @@ cmd += "-Dvisnet_enable=true "
 cmd += "-Dvisnet_rr_threshold=0.1 "
 cmd += "-Dvisnet_threshold=0.4 "
 
-cmd += "-Dblock_size={} ".format(block_size)
+cmd += "-Dblock_size={} ".format(256)
 print(cmd)
 run_cmd(cmd, name)
 

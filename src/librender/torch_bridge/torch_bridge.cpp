@@ -243,15 +243,22 @@ FlowModelBridge::FlowModelBridge(const char* path, bool use_gpu) {
     m_impl->LoadModel(path, use_gpu);
 }
 
-void FlowModelBridge::flow_forward(const float* input_data, float* output_dir, float* output_weights, int data_size, int step_count) {
+void FlowModelBridge::flow_forward(const float* input_data, const float* model_to_world, float* output_dir, float* output_weights, int data_size, int step_count) {
     auto option = torch::TensorOptions().dtype(torch::kFloat32).device(m_impl->device);
     auto points_tensor = torch::from_blob((void*)input_data, {data_size, 6}, torch::kFloat32).to(m_impl->device, /*non_blocking=*/false);
+    auto model_to_world_tensor = torch::from_blob((void*)model_to_world, {3, 3}, torch::kFloat32).to(m_impl->device, /*non_blocking=*/false);
 
     int p = 2;
     auto time_grid = torch::linspace(0.0, 1.0, step_count + 1, option);
 
     // TODO: connect to sample_flow_direction
+    auto [direction, weight] = sample_flow_direction(*m_impl, points_tensor, model_to_world_tensor, time_grid, option);
 
+    auto out_dir_tensor = torch::from_blob(output_dir, {data_size, 3}, torch::kFloat32);
+    out_dir_tensor.copy_(direction.contiguous());
+
+    auto out_weight_tensor = torch::from_blob(output_weights, {data_size}, torch::kFloat32);
+    out_weight_tensor.copy_(weight.squeeze(-1).contiguous());
 }
 
 void FlowModelBridge::test_flow_forward() {
@@ -304,9 +311,9 @@ FM_BRIDGE_API void torch_load_flow_model(const char* path, bool use_gpu){
     auto &w = FlowModelBridge::instance(path, use_gpu);
 }
 
-FM_BRIDGE_API void torch_flow_forward(float* input_data, float* output_dir, float* output_weights, int data_size, int step_count){
+FM_BRIDGE_API void torch_flow_forward(const float* input_data, const float* model_to_world, float* output_dir, float* output_weights, int data_size, int step_count){
     auto &w = FlowModelBridge::instance(nullptr); // 使用已經載入的模型
-    w.flow_forward(input_data, output_dir, output_weights, data_size, step_count);
+    w.flow_forward(input_data, model_to_world, output_dir, output_weights, data_size, step_count);
 }
 
 FM_BRIDGE_API void torch_test_flow_forward(){

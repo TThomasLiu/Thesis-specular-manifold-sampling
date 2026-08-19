@@ -251,6 +251,15 @@ public:
 
                     if(!specular_shape->flow_model_path().empty()){
                         torch_load_flow_model(specular_shape->flow_model_path().c_str(), m_device_gpu);
+
+                        // load m_to_world matrix to flat vector
+                        const auto& m4 = specular_shape->to_world().matrix;
+                        m_flat_to_world.resize(9);
+                        for (int i = 0; i < 3; i++) {
+                            for (int j = 0; j < 3; j++) {
+                                m_flat_to_world[i * 3 + j] = m4(i, j);
+                            }
+                        }
                     }
                 }
             }
@@ -297,6 +306,8 @@ protected:
     bool m_device_gpu;
     bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
     ScalarTransform4f m_to_model;
+    
+    std::vector<float> m_flat_to_world;
 
     // sample
     void bounce_step(FlowSpecularManifoldMultiScatter & mf, MNEEHelper & mnee, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene) const {
@@ -519,6 +530,10 @@ protected:
         static std::vector<WaveVariables> wave_variables(pixel_count);
         static std::vector<float> model_inputs (pixel_count * 6);
         static std::vector<int> model_outputs (pixel_count);
+        
+        static std::vector<float> flow_direction (pixel_count * 3);
+        static std::vector<float> flow_direction_weight (pixel_count);
+        
         std::atomic<int>  SMS_enable_count;
         std::atomic<int>  active_count;
 
@@ -650,10 +665,28 @@ protected:
                     
                     // model run
                     {
-                        if (SMS_enable_count > 0 && m_visnet_sms_config.visnet_enable && SMS_enable_count > m_visnet_sms_config.visnet_enable_threshold) {
+                        if (SMS_enable_count > 0) {
                             ScopedPhase scope_phase(ProfilerPhase::TorchModelRun);
                             torch_visnet_forward(model_inputs.data(), model_outputs.data(), SMS_enable_count, m_visnet_sms_config.visnet_threshold);
                             visnet_enable = true;
+
+                            // create data for flow model
+                            int flow_enable_count = 0;
+                            for(int i = 0 ; i < SMS_enable_count; i++){
+                                if(model_outputs[i]){
+                                    memcpy(&model_inputs[flow_enable_count * 6], &model_inputs[i * 6], sizeof(float) * 6);
+                                    flow_enable_count++;
+                                }
+                            }
+
+                            std::cout<<"flow_enable_count: "<<flow_enable_count<<std::endl;
+                            if(flow_enable_count > 0){
+                                torch_flow_forward(model_inputs.data(), m_flat_to_world.data(), flow_direction.data(), flow_direction_weight.data(), flow_enable_count, 10);
+    
+                                std::cout<< flow_direction[0]<<" "<<flow_direction[1]<<" "<<flow_direction[2]<<std::endl;
+                                std::cout<<"called flow model"<<std::endl;
+                            }
+
                         }
                     }
                 }

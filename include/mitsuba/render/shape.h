@@ -383,6 +383,7 @@ public:
 
     /// Return the transformation from object to world space
     ScalarTransform4f to_object() const { return m_to_object; }
+    ScalarTransform4f to_world() const { return m_to_world; }
 
     /**
      * \brief Returns the number of sub-primitives that make up this shape
