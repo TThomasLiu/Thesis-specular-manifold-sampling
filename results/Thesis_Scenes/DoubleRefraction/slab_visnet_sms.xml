@@ -60,7 +60,7 @@
 
     <shape type="obj">
         <string name="filename" value="meshes/plane_1.obj"/>
-        <string name="visnet_model_path" value="models/sms_fig18_all_path_3L_32h_vis.pt"/>
+        <string name="visnet_model_path" value="model/sms_fig18_all_path_3L_32h_vis.pt"/>
         <boolean name="caustic_caster_multi" value="true"/>
 
         <bsdf type="dielectric">
