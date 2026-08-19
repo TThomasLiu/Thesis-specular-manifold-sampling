@@ -248,10 +248,15 @@ public:
                 if (!specular_shape->visnet_model_path().empty()) {
                     torch_load_visnet_model(specular_shape->visnet_model_path().c_str(), m_device_gpu);
                     m_to_model = specular_shape->to_object();
+
+                    if(!specular_shape->flow_model_path().empty()){
+                        torch_load_flow_model(specular_shape->flow_model_path().c_str(), m_device_gpu);
+                    }
                 }
             }
         }
 
+        torch_test_flow_forward();
         // bool result = MonteCarloIntegrator::render(scene, sensor);
         bool result = sequential_block_render(scene, sensor);
         FlowSpecularManifoldMultiScatter::print_statistics();
@@ -346,7 +351,10 @@ protected:
 
         if (variable_set.si.shape->is_caustic_receiver() && !on_caustic_caster &&
             (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)) {
-            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler, variable_set.ei, variable_set.enable) * variable_set.sample_weight;
+
+            // TODO: caustic rendering logics
+
+            // variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler, variable_set.ei, variable_set.enable) * variable_set.sample_weight;
         }
 
         // --------------------- Emitter sampling ---------------------

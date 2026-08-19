@@ -53,6 +53,28 @@ cmd += "-Dvisnet_threshold=0.4 "
 
 cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
+# run_cmd(cmd, name)
+
+name = "slab_flow_test"
+cmd = "mitsuba "
+cmd += "slab_flow.xml "
+cmd += "-o results/{}.exr ".format(name)
+# cmd += "-Dspp=999999999 "
+cmd += "-Dspp=1 "
+cmd += "-Dsamples_per_pass=1 "
+cmd += "-Dtimeout={} ".format(timeout)
+cmd += "-Dcaustics_biased=false "
+
+# cmd += "-Dcaustics_biased=true "
+# cmd += "-Dcaustics_max_trials=8 "
+
+cmd += "-Dmodel_device=gpu "
+cmd += "-Dvisnet_enable=true "
+cmd += "-Dvisnet_rr_threshold=0.1 "
+cmd += "-Dvisnet_threshold=0.4 "
+
+cmd += "-Dblock_size={} ".format(block_size)
+print(cmd)
 run_cmd(cmd, name)
 
 name = "slab_visnet_sms_test"
@@ -72,7 +94,7 @@ cmd += "-Dvisnet_enable=false "
 
 cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 
 # for M in [1, 2, 4, 8]:
 #     name = "slab_sms_b{:02d}".format(M)

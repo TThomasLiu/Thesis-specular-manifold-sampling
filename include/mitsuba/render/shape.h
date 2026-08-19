@@ -344,6 +344,9 @@ public:
 
     /// Return the path to the visnet model associated with this shape (if any)
     const std::string &visnet_model_path() const { return m_visnet_model_path; }
+    
+    /// Return the path to the flow model associated with this shape (if any)
+    const std::string &flow_model_path() const { return m_flow_model_path; }
 
     /// Does the surface of this shape mark a medium transition?
     bool is_medium_transition() const { return m_interior_medium.get() != nullptr ||
@@ -442,6 +445,7 @@ protected:
     ref<Medium> m_exterior_medium;
     std::string m_id;
     std::string m_visnet_model_path;
+    std::string m_flow_model_path;
 
     ScalarTransform4f m_to_world;
     ScalarTransform4f m_to_object;

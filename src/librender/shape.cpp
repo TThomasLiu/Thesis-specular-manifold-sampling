@@ -81,6 +81,7 @@ MTS_VARIANT Shape<Float, Spectrum>::Shape(const Properties &props) : m_id(props.
     m_caustic_caster_multi = props.bool_("caustic_caster_multi", false);
     m_caustic_bouncer = props.bool_("caustic_bouncer", false);
     m_visnet_model_path = props.string("visnet_model_path", "");
+    m_flow_model_path = props.string("flow_model_path", "");
 }
 
 MTS_VARIANT Shape<Float, Spectrum>::~Shape() {
