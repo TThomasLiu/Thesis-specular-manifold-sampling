@@ -277,6 +277,117 @@ public:
         return result;
     }
 
+    static EmitterInteraction sample_emitter(const SurfaceInteraction3f &si, const std::vector<ref<Emitter>> emitters, ref<Sampler> sampler){
+        EmitterInteraction ei;
+        Spectrum spec = 0.f;
+        Float emitter_sample = sampler->next_1d();
+        Float emitter_pdf = 1.f / emitters.size();
+        UInt32 index = min(UInt32(emitter_sample * (ScalarFloat) emitters.size()), (uint32_t) emitters.size()-1);
+        const EmitterPtr emitter = gather<EmitterPtr>(emitters.data(), index);
+        ei.emitter = emitter;
+
+
+        if (ei.is_area()) {
+            const ShapePtr shape = emitter->shape();
+            PositionSample3f ps = shape->sample_position(si.time, sampler->next_2d());
+            if (ps.pdf > 0) {
+                SurfaceInteraction3f si_emitter;
+                si_emitter.p = ps.p;
+                si_emitter.wi = Vector3f(0.f, 0.f, 1.f);
+                si_emitter.wavelengths = si.wavelengths;
+                si_emitter.time = si.time;
+
+                spec = emitter->eval(si_emitter) / ps.pdf;
+
+                ei.p = ps.p;
+                ei.n = ps.n;
+                ei.d = normalize(ps.p - si.p);
+                ei.pdf = ps.pdf;
+            }
+        }else if(ei.is_point()){
+            auto [ds, spec_] = emitter->sample_direction(si, sampler->next_2d());
+            ei.p = ds.p;
+            ei.d = ds.d;
+            ei.n = ei.d;
+            ei.pdf = ds.pdf;
+            // Remove solid angle conversion factor. This will be accounted for later in the geometric term computation.
+            spec = spec_ * ds.dist*ds.dist;
+        }else{
+            throw std::runtime_error("Unsupported emitter type for sample_emitter.");
+        }
+
+        ei.pdf *= emitter_pdf;
+        ei.weight = spec * rcp(emitter_pdf);
+        return ei;
+    };
+
+    Float gaussian_weight_2d(Float r, Float std_dev, Float mu, Float r_max) const {
+        using enoki::exp;
+        using enoki::select;
+
+        Float r_max_scaled = r_max * std_dev;
+
+        Float eps_c = exp(Float(-0.5) * (r_max_scaled / std_dev) * (r_max_scaled / std_dev));  // tail mass beyond r_max
+        Float norm_const = Float(2) * math::Pi<Float> * std_dev * std_dev * (Float(1) - eps_c);
+
+        Float diff = (r - mu) / std_dev;
+        Float weight = exp(Float(-0.5) * diff * diff) / norm_const;
+
+        return select(r <= r_max_scaled, weight, Float(0));  // Enoki 向量化下的條件選擇,取代 np.where
+    }
+
+    Spectrum trace_photon(const Scene* scene, WaveVariables& variable_set, int depth) const {
+        Spectrum throughput(1.0f);
+        Ray3f ray(variable_set.ei.p, variable_set.flow_direction, variable_set.si.time, variable_set.si.wavelengths);
+
+        SurfaceInteraction3f si;
+        for(int i = 0; i < depth; ++i){
+            si = scene->ray_intersect(ray);
+            const ShapePtr shape = si.shape;
+            if(!si.is_valid()){
+                throughput = 0.f;
+                break;
+            }
+
+
+            // check if the shape is a caustic receiver
+            if(shape->is_caustic_receiver()){
+                // get si distance to the receiver
+                Float dist = norm(si.p - variable_set.si.p);
+
+                Float weight = gaussian_weight_2d(dist, 0.01f, 0.f, 3.f);
+                variable_set.flow_weight *= weight;
+                // std::cout<<"deviation: "<< dist << " weight: " << weight << " depth: " << i << std::endl;
+                break;
+            }
+            
+            if(!shape->is_caustic_caster_multi_scatter() &&
+            !shape->is_caustic_bouncer()){
+                throughput = 0.f;
+                break;
+            }
+
+
+            si.compute_partials(ray);
+
+            BSDFContext ctx;
+            ctx.sampler = variable_set.sampler;
+            BSDFPtr bsdf = si.bsdf(ray);
+
+            // Sample a new direction
+            auto [bs, bsdf_weight] = bsdf->sample(ctx, si, variable_set.sampler->next_1d(), variable_set.sampler->next_2d());
+            bsdf_weight = si.to_world_mueller(bsdf_weight, -bs.wo, si.wi);
+            throughput = throughput * bsdf_weight;
+            if (all(eq(variable_set.throughput, 0.f))){
+                break;
+            }
+
+            // Update the ray for the next bounce
+            ray = si.spawn_ray(si.to_world(bs.wo));
+        }
+        return throughput;
+    }
+
     std::pair<Spectrum, Mask> sample(const Scene *scene,
                                      Sampler *sampler,
                                      const RayDifferential3f &ray_,
@@ -364,9 +475,13 @@ protected:
                                     variable_set.si.shape->is_caustic_bouncer();
 
         if (variable_set.si.shape->is_caustic_receiver() && !on_caustic_caster &&
-            (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)) {
+            (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)&& variable_set.enable) {
 
             // TODO: caustic rendering logics
+
+            Spectrum photon_result = trace_photon(scene, variable_set, 5);
+            
+            variable_set.result += variable_set.throughput * photon_result * variable_set.flow_weight * variable_set.ei.weight;
 
             // std::cout<<variable_set.enable << " " << variable_set.flow_direction << " " << variable_set.flow_weight << std::endl;
             // variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler, variable_set.ei, variable_set.enable) * variable_set.sample_weight;
@@ -491,6 +606,7 @@ protected:
         static std::vector<int> compact_map (pixel_count);
         static std::vector<WaveVariables> wave_variables(pixel_count);
         static std::vector<float> model_inputs (pixel_count * 6);
+        static std::vector<float> temp_model_inputs (pixel_count * 6);
         static std::vector<int> model_outputs (pixel_count);
         
         static std::vector<float> flow_direction (pixel_count * 3);
@@ -597,6 +713,8 @@ protected:
                                     WaveVariables& variable_set = wave_variables[compact_map[i]];
                                     variable_set.ei = SpecularManifold::sample_emitter_interaction(variable_set.si, scene->caustic_emitters_multi_scatter(), variable_set.sampler);
                                     
+                                    // test sample ei
+                                    sample_emitter(variable_set.si, scene->caustic_emitters_multi_scatter(), variable_set.sampler);
     
                                     if (!m_visnet_sms_config.visnet_enable) continue;
     
@@ -624,7 +742,7 @@ protected:
                             }
                         );
                     }
-                    
+
                     // model run
                     {
                         if (SMS_enable_count > 0) {
@@ -639,7 +757,7 @@ protected:
                                 if(variable_set.model_index == -1) continue;
 
                                 if(model_outputs[variable_set.model_index]){
-                                    memcpy(&model_inputs[flow_enable_count * 6], &model_inputs[variable_set.model_index * 6], sizeof(float) * 6);
+                                    memcpy(&temp_model_inputs[flow_enable_count * 6], &model_inputs[variable_set.model_index * 6], sizeof(float) * 6);
                                     variable_set.model_index = flow_enable_count;
                                     variable_set.enable = true;
                                     flow_enable_count++;
@@ -650,6 +768,7 @@ protected:
 
                                 visnet_count++;
                             }
+                            model_inputs.swap(temp_model_inputs);
 
 
 
