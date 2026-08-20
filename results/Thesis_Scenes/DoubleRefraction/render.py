@@ -60,7 +60,7 @@ cmd = "mitsuba "
 cmd += "slab_flow.xml "
 cmd += "-o results/{}.exr ".format(name)
 # cmd += "-Dspp=999999999 "
-cmd += "-Dspp=1 "
+cmd += "-Dspp=10 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "

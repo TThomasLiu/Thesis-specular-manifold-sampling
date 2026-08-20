@@ -321,7 +321,7 @@ public:
         return ei;
     };
 
-    Float gaussian_weight_2d(Float r, Float std_dev, Float mu, Float r_max) const {
+    Float gaussian_weight_2d(Float r, Float std_dev, Float r_max) const {
         using enoki::exp;
         using enoki::select;
 
@@ -330,7 +330,7 @@ public:
         Float eps_c = exp(Float(-0.5) * (r_max_scaled / std_dev) * (r_max_scaled / std_dev));  // tail mass beyond r_max
         Float norm_const = Float(2) * math::Pi<Float> * std_dev * std_dev * (Float(1) - eps_c);
 
-        Float diff = (r - mu) / std_dev;
+        Float diff = (r) / std_dev;
         Float weight = exp(Float(-0.5) * diff * diff) / norm_const;
 
         return select(r <= r_max_scaled, weight, Float(0));  // Enoki 向量化下的條件選擇,取代 np.where
@@ -340,31 +340,45 @@ public:
         Spectrum throughput(1.0f);
         Ray3f ray(variable_set.ei.p, variable_set.flow_direction, variable_set.si.time, variable_set.si.wavelengths);
 
+        // if(variable_set.ei.is_area()){
+        //     throughput *= dot(variable_set.ei.n, variable_set.flow_direction);
+        // }
+
         SurfaceInteraction3f si;
+        bool success= false;
         for(int i = 0; i < depth; ++i){
             si = scene->ray_intersect(ray);
             const ShapePtr shape = si.shape;
+
+            
             if(!si.is_valid()){
-                throughput = 0.f;
-                break;
+                return 0.f;
             }
+
+            // // geometric term for emitter
+            // if(i == 0){
+            //     auto emitter_dist = norm(variable_set.ei.p - si.p);
+            //     throughput *= rcp(emitter_dist * emitter_dist);
+            // }
 
 
             // check if the shape is a caustic receiver
             if(shape->is_caustic_receiver()){
                 // get si distance to the receiver
                 Float dist = norm(si.p - variable_set.si.p);
-
-                Float weight = gaussian_weight_2d(dist, 0.01f, 0.f, 3.f);
+                Float weight = gaussian_weight_2d(dist, 0.01f, 3.f);
                 variable_set.flow_weight *= weight;
-                // std::cout<<"deviation: "<< dist << " weight: " << weight << " depth: " << i << std::endl;
+
+                if (i != 2) {
+                    return 0.f;
+                }
+                success = true;
                 break;
             }
             
             if(!shape->is_caustic_caster_multi_scatter() &&
             !shape->is_caustic_bouncer()){
-                throughput = 0.f;
-                break;
+                return 0.f;
             }
 
 
@@ -378,13 +392,27 @@ public:
             auto [bs, bsdf_weight] = bsdf->sample(ctx, si, variable_set.sampler->next_1d(), variable_set.sampler->next_2d());
             bsdf_weight = si.to_world_mueller(bsdf_weight, -bs.wo, si.wi);
             throughput = throughput * bsdf_weight;
-            if (all(eq(variable_set.throughput, 0.f))){
-                break;
+            if (all(eq(throughput, 0.f))){
+                return 0.f;
             }
 
             // Update the ray for the next bounce
             ray = si.spawn_ray(si.to_world(bs.wo));
         }
+
+        if(!success){
+            return 0.0f;
+        }
+
+        BSDFPtr bsdf = variable_set.si.bsdf(variable_set.ray);
+        BSDFContext ctx;
+        ctx.sampler = variable_set.sampler;
+        // auto [bs, bsdf_weight] = bsdf->sample(ctx, variable_set.si, variable_set.sampler->next_1d(), variable_set.sampler->next_2d());
+
+        auto bsdf_weight = bsdf->eval(ctx, variable_set.si, ray.d);
+        // std::cout<<"bsdf_weight: " << bsdf_weight << "  " << bsdf_weight_2 << std::endl;
+        bsdf_weight = variable_set.si.to_world_mueller(bsdf_weight, ray.d, variable_set.si.wi);
+        throughput = throughput * bsdf_weight;
         return throughput;
     }
 
