@@ -71,97 +71,6 @@ protected:
        For each random light connection we want to check if that light path could
        have also been generated with MNEE, so we need to keep some additional
        state around. This helper struct here takes care of this. */
-    struct MNEEHelper {
-        enum MNEEState {
-            Default = 0,
-            HitReceiver,
-            HitCaster,
-            HitEmitter,
-        } state;
-        int bounce;
-
-        const Scene *scene = nullptr;
-        SMSConfig sms_config;
-
-        SurfaceInteraction3f si_endpoint;
-        std::vector<ShapePtr> specular_shapes;
-        std::vector<Point3f>  specular_positions;
-
-        void init(const Scene *s, const SMSConfig &config) {
-            scene = s;
-            sms_config = config;
-            reset();
-        }
-
-        void reset() {
-            state = MNEEState::Default;
-            specular_shapes.clear();
-            specular_positions.clear();
-            bounce = -1;
-        }
-
-        bool is_possible() const {
-            return state == MNEEState::HitEmitter && bounce == sms_config.bounces;
-        }
-
-        void state_transition(const SurfaceInteraction3f &next_si) {
-            // In any case, when we hit a caustic receiver we start from scratch
-            if (next_si.is_valid() &&
-                next_si.shape->is_caustic_receiver()) {
-                reset();
-                state = MNEEState::HitReceiver;
-                // Save this interaction for later
-                si_endpoint = next_si;
-                return;
-            }
-
-            EmitterPtr emitter = next_si.emitter(scene);
-
-            if (state == MNEEState::HitReceiver) {
-                // From here we should hit the first caustic caster
-                if (next_si.is_valid() &&
-                    next_si.shape->is_caustic_caster_multi_scatter()) {
-                    // Record hit and transition to HitCaster
-                    specular_shapes.push_back(next_si.shape);
-                    specular_positions.push_back(next_si.p);
-                    bounce = 1;
-                    state = MNEEState::HitCaster;
-                } else {
-                    reset();
-                }
-                return;
-            } else if (state == MNEEState::HitCaster) {
-                /* From here we can hit either caustic caster or bouncer to
-                   build up the specular chain
-                   or
-                   hit a light source and complete a potential MNEE path. */
-                if (bounce < sms_config.bounces &&
-                    next_si.is_valid() &&
-                    (next_si.shape->is_caustic_caster_multi_scatter() ||
-                     next_si.shape->is_caustic_bouncer())) {
-                    // Record hit but stay in this state
-                    specular_shapes.push_back(next_si.shape);
-                    specular_positions.push_back(next_si.p);
-                    bounce++;
-                } else if (bounce == sms_config.bounces &&
-                           emitter && emitter->is_caustic_emitter_multi_scatter()) {
-                    state = MNEEState::HitEmitter;
-                } else {
-                    reset();
-                }
-                return;
-            } else if (state == MNEEState::HitEmitter) {
-                // We completed a path. Reset now as the path was processed in the meantime.
-                reset();
-                return;
-            } else {
-                // Any other case, e.g. miss the scene
-                reset();
-                return;
-            }
-        }
-    };
-
     struct WaveVariables{
         // write position
         Vector2f position_sample;
@@ -209,31 +118,18 @@ protected:
         }
     };
 
-    static inline ThreadLocal<FlowSpecularManifoldMultiScatter> tl_manifold{};
-    static inline ThreadLocal<MNEEHelper> tl_mnee{};
-
 public:
     MultiScatterFlowPathIntegrator(const Properties &props) : Base(props) {
         m_sms_config = SMSConfig();
-        m_sms_config.biased                 = props.bool_("biased", false);
-        m_sms_config.twostage               = props.bool_("twostage", false);
-        m_sms_config.halfvector_constraints = props.bool_("halfvector_constraints", false);
-        m_sms_config.mnee_init              = props.bool_("mnee_init", false);
-        m_sms_config.step_scale             = props.float_("step_scale", 1.f);
-        m_sms_config.max_iterations         = props.int_("max_iterations", 20);
-        m_sms_config.solver_threshold       = props.float_("solver_threshold", 1e-5f);
-        m_sms_config.uniqueness_threshold   = props.float_("uniqueness_threshold", 1e-4f);
-        m_sms_config.max_trials             = props.int_("max_trials", -1);
 
         m_sms_config.bounces                = props.int_("bounces", 2);
         m_sms_config.remove_pt_direct_hit   = props.bool_("remove_pt_direct_hit", false);
 
-        m_biased_mnee                  = props.bool_("biased_mnee", false);
-
         m_visnet_sms_config.visnet_enable = props.bool_("visnet_enable", false);
-        m_visnet_sms_config.visnet_enable_threshold = props.int_("visnet_enable_threshold", 10000);
-        m_visnet_sms_config.visnet_rr_threshold = props.float_("visnet_rr_threshold", 0.3f);
         m_visnet_sms_config.visnet_threshold = props.float_("visnet_threshold", 0.4f);
+
+        m_rmax = props.float_("rmax", 3.0f);
+        m_noise_std = props.float_("noise_std", 0.01f);
         
         std::string model_device = props.string("model_device", "gpu");
         if (model_device == "gpu") {
@@ -270,10 +166,7 @@ public:
             }
         }
 
-        // torch_test_flow_forward();
-        // bool result = MonteCarloIntegrator::render(scene, sensor);
         bool result = sequential_block_render(scene, sensor);
-        FlowSpecularManifoldMultiScatter::print_statistics();
         return result;
     }
 
@@ -407,10 +300,8 @@ public:
         BSDFPtr bsdf = variable_set.si.bsdf(variable_set.ray);
         BSDFContext ctx;
         ctx.sampler = variable_set.sampler;
-        // auto [bs, bsdf_weight] = bsdf->sample(ctx, variable_set.si, variable_set.sampler->next_1d(), variable_set.sampler->next_2d());
 
         auto bsdf_weight = bsdf->eval(ctx, variable_set.si, ray.d);
-        // std::cout<<"bsdf_weight: " << bsdf_weight << "  " << bsdf_weight_2 << std::endl;
         bsdf_weight = variable_set.si.to_world_mueller(bsdf_weight, ray.d, variable_set.si.wi);
         throughput = throughput * bsdf_weight;
         return throughput;
@@ -450,11 +341,13 @@ protected:
     bool m_device_gpu;
     bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
     ScalarTransform4f m_to_model;
+    float m_rmax;
+    float m_noise_std;
     
     std::vector<float> m_flat_to_world;
 
     // sample
-    void bounce_step(FlowSpecularManifoldMultiScatter & mf, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene) const {
+    void bounce_step(WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene) const {
         if(!variable_set.active){
             return;
         }
@@ -507,12 +400,9 @@ protected:
 
             // TODO: caustic rendering logics
 
-            Spectrum photon_result = trace_photon(scene, variable_set, 5);
+            Spectrum photon_result = trace_photon(scene, variable_set, m_sms_config.bounces + 1);
             
             variable_set.result += variable_set.throughput * photon_result * variable_set.flow_weight * variable_set.ei.weight;
-
-            // std::cout<<variable_set.enable << " " << variable_set.flow_direction << " " << variable_set.flow_weight << std::endl;
-            // variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler, variable_set.ei, variable_set.enable) * variable_set.sample_weight;
         }
 
         // --------------------- Emitter sampling ---------------------
@@ -816,9 +706,6 @@ protected:
                     [&](const tbb::blocked_range<size_t> &range) {
                         ScopedSetThreadEnvironment set_env(env);
                         scoped_flush_denormals flush_denormals(true);
-                        
-                        auto &mf = (FlowSpecularManifoldMultiScatter &)tl_manifold;
-                        mf.init(scene, m_sms_config, m_visnet_sms_config);
 
                         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
                             WaveVariables& variable_set = wave_variables[compact_map[i]];
@@ -829,7 +716,7 @@ protected:
                                 variable_set.flow_weight = flow_direction_weight[model_index];
                             }
 
-                            bounce_step(mf, variable_set, depth, sensor->medium(), scene);
+                            bounce_step(variable_set, depth, sensor->medium(), scene);
                         }
                     }
                 );
