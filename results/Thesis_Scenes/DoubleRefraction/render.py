@@ -14,7 +14,7 @@ def run_cmd(command, name):
         file.write(log_str)
 
 # 5 min for all methods that we want to compare
-timeout = 5*60
+timeout = 3*60
 # timeout = 5
 # timeout = 30
 
@@ -25,8 +25,8 @@ name = "slab_sms_test"
 cmd = "mitsuba "
 cmd += "slab_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-# cmd += "-Dspp=5 "
+# cmd += "-Dspp=999999999 "
+cmd += "-Dspp=5 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
@@ -37,8 +37,8 @@ name = "slab_visnet_sms_vis_test"
 cmd = "mitsuba "
 cmd += "slab_visnet_sms.xml "
 cmd += "-o results/{}.exr ".format(name)
-# cmd += "-Dspp=999999999 "
-cmd += "-Dspp=5 "
+cmd += "-Dspp=999999999 "
+# cmd += "-Dspp=5 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
@@ -53,7 +53,26 @@ cmd += "-Dvisnet_threshold=0.4 "
 
 cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
-# run_cmd(cmd, name)
+run_cmd(cmd, name)
+
+name = "slab_visnet_sms_test"
+cmd = "mitsuba "
+cmd += "slab_visnet_sms.xml "
+cmd += "-o results/{}.exr ".format(name)
+cmd += "-Dspp=999999999 "
+# cmd += "-Dspp=5 "
+cmd += "-Dsamples_per_pass=1 "
+cmd += "-Dtimeout={} ".format(timeout)
+cmd += "-Dcaustics_biased=false "
+
+# cmd += "-Dcaustics_biased=true "
+# cmd += "-Dcaustics_max_trials=8 "
+
+cmd += "-Dvisnet_enable=false "
+
+cmd += "-Dblock_size={} ".format(block_size)
+print(cmd)
+run_cmd(cmd, name)
 
 name = "slab_flow_test"
 cmd = "mitsuba "
@@ -74,26 +93,7 @@ cmd += "-Dvisnet_rr_threshold=0.1 "
 cmd += "-Dvisnet_threshold=0.4 "
 
 cmd += "-Dblock_size={} ".format(256)
-print(cmd)
-run_cmd(cmd, name)
-
-name = "slab_visnet_sms_test"
-cmd = "mitsuba "
-cmd += "slab_visnet_sms.xml "
-cmd += "-o results/{}.exr ".format(name)
-# cmd += "-Dspp=999999999 "
-cmd += "-Dspp=5 "
-cmd += "-Dsamples_per_pass=1 "
-cmd += "-Dtimeout={} ".format(timeout)
-cmd += "-Dcaustics_biased=false "
-
-# cmd += "-Dcaustics_biased=true "
-# cmd += "-Dcaustics_max_trials=8 "
-
-cmd += "-Dvisnet_enable=false "
-
-cmd += "-Dblock_size={} ".format(block_size)
-print(cmd)
+# print(cmd)
 # run_cmd(cmd, name)
 
 # for M in [1, 2, 4, 8]:

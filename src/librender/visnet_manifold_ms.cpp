@@ -20,11 +20,9 @@ MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>
 
 MTS_VARIANT void
 VisnetSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
-                                                    const SMSConfig &config,
-                                                    const VisnetSMSConfig &visnet_config) {
+                                                    const SMSConfig &config) {
     m_scene = scene;
     m_config = config;
-    m_visnet_config = visnet_config;
 
     auto shapes = m_scene->caustic_casters_multi_scatter();
     
@@ -86,7 +84,7 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(
         return 0.f;
     }
 
-    if(!external_enable && m_visnet_config.visnet_enable){
+    if(!external_enable){
         stats_external_reject++;
         return 0.f;
     }

@@ -61,7 +61,8 @@
     <shape type="obj">
         <string name="filename" value="meshes/plane_1.obj"/>
         <string name="visnet_model_path" value="model/sms_fig18_all_path_3L_32h_vis.pt"/>
-        <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_noise001_fm.pt"/>
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_noise001_fm.pt"/> -->
+        <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_noise001_fm.pt"/>
         <boolean name="caustic_caster_multi" value="true"/>
 
         <bsdf type="dielectric">

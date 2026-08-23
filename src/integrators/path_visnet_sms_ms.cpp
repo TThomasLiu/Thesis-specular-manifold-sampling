@@ -294,7 +294,7 @@ protected:
     ScalarTransform4f m_to_model;
 
     // sample
-    void bounce_step(VisnetSpecularManifoldMultiScatter & mf, MNEEHelper & mnee, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene) const {
+    void bounce_step(VisnetSpecularManifoldMultiScatter & mf, MNEEHelper & mnee, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene, const bool visnet_enable) const {
         if(!variable_set.active){
             return;
         }
@@ -346,7 +346,7 @@ protected:
 
         if (variable_set.si.shape->is_caustic_receiver() && !on_caustic_caster &&
             (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)) {
-            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler, variable_set.ei, variable_set.enable) * variable_set.sample_weight;
+            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler, variable_set.ei, !visnet_enable || variable_set.enable) * variable_set.sample_weight;
         }
 
         // --------------------- Emitter sampling ---------------------
@@ -602,7 +602,6 @@ protected:
                     // ei sampling
                     {               
                         SMS_enable_count = 0;
-                        // bool sms_depth_check = (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth);
                         tbb::parallel_for(
                             tbb::blocked_range<size_t>(0, active_count, 1),
                             [&](const tbb::blocked_range<size_t> &range) {
@@ -620,7 +619,6 @@ protected:
                                         variable_set.si.shape->is_caustic_receiver() &&
                                         (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth))
                                     {
-                                        
                                         variable_set.model_index = SMS_enable_count.fetch_add(1, std::memory_order_relaxed);
                                     }else{
                                         variable_set.model_index = -1;
@@ -658,7 +656,7 @@ protected:
                         scoped_flush_denormals flush_denormals(true);
                         
                         auto &mf = (VisnetSpecularManifoldMultiScatter &)tl_manifold;
-                        mf.init(scene, m_sms_config, m_visnet_sms_config);
+                        mf.init(scene, m_sms_config);
                         auto &mnee = (MNEEHelper &)tl_mnee;
                         mnee.init(scene, m_sms_config);
 
@@ -669,7 +667,6 @@ protected:
                                     variable_set.enable = false;
                                 }else{
                                     variable_set.enable = model_outputs[variable_set.model_index];
-                                    
                                     if(!variable_set.enable){
                                         // RR
                                         float rr = variable_set.sampler->next_1d();
@@ -682,7 +679,7 @@ protected:
                                     }
                                 }
                             }
-                            bounce_step(mf, mnee, variable_set, depth, sensor->medium(), scene);
+                            bounce_step(mf, mnee, variable_set, depth, sensor->medium(), scene, visnet_enable);
                         }
                     }
                 );

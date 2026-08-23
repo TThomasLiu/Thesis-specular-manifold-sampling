@@ -30,7 +30,7 @@ public:
     //           Main functionality, to be called from integrators
     // ========================================================================}
 
-    void init(const Scene *scene, const SMSConfig &config, const VisnetSMSConfig &visnet_config);
+    void init(const Scene *scene, const SMSConfig &config);
 
     /**
      * \brief Perform specular manifold sampling, with parameters based on the
@@ -168,7 +168,6 @@ protected:
 protected:
     const Scene *m_scene = nullptr;
     SMSConfig m_config;
-    VisnetSMSConfig m_visnet_config;
 
     std::vector<ManifoldVertex> m_seed_path, m_current_path, m_proposed_path;
     std::vector<Point3f> m_proposed_positions;
