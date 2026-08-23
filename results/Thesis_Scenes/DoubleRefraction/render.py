@@ -14,7 +14,7 @@ def run_cmd(command, name):
         file.write(log_str)
 
 # 5 min for all methods that we want to compare
-timeout = 3*60
+timeout = 10*60
 # timeout = 5
 # timeout = 30
 
@@ -53,7 +53,7 @@ cmd += "-Dvisnet_threshold=0.4 "
 
 cmd += "-Dblock_size={} ".format(block_size)
 print(cmd)
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 
 name = "slab_visnet_sms_test"
 cmd = "mitsuba "

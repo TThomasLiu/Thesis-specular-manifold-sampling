@@ -322,18 +322,18 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const Shap
     Vector3f wo = normalize(x1 - x0);
 
     // If requested, override with MNEE initialization without randomization.
-    if (m_config.mnee_init) {
-        Complex<Spectrum> ior = shape->bsdf()->ior(si);
-        Mask reflection = any(neq(0.f, imag(ior)));
-        if (reflection) {
-            // Modified "MNEE"
-            BoundingBox3f bbox = shape->bbox();
-            wo = normalize(bbox.center() - x0);   // Modified MNEE for reflection.
-        } else {
-            // Standard MNEE
-            wo = normalize(ei.p - x0);
-        }
-    }
+    // if (m_config.mnee_init) {
+    //     Complex<Spectrum> ior = shape->bsdf()->ior(si);
+    //     Mask reflection = any(neq(0.f, imag(ior)));
+    //     if (reflection) {
+    //         // Modified "MNEE"
+    //         BoundingBox3f bbox = shape->bbox();
+    //         wo = normalize(bbox.center() - x0);   // Modified MNEE for reflection.
+    //     } else {
+    //         // Standard MNEE
+    //         wo = normalize(ei.p - x0);
+    //     }
+    // }
 
     Ray3f ray(x0, wo, si.time, si.wavelengths);
 
@@ -394,7 +394,8 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const Shap
         }
 
         // Perform scattering at vertex, unless we are doing the straight-line MNEE initialization
-        if (!m_config.mnee_init) {
+        // if (!m_config.mnee_init) 
+        {
             // Get current (potentially offset) normal in world space
             Vector3f m = vertex.s * n_offset[0] +
                          vertex.t * n_offset[1] +

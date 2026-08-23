@@ -71,96 +71,96 @@ protected:
        For each random light connection we want to check if that light path could
        have also been generated with MNEE, so we need to keep some additional
        state around. This helper struct here takes care of this. */
-    struct MNEEHelper {
-        enum MNEEState {
-            Default = 0,
-            HitReceiver,
-            HitCaster,
-            HitEmitter,
-        } state;
-        int bounce;
+    // struct MNEEHelper {
+    //     enum MNEEState {
+    //         Default = 0,
+    //         HitReceiver,
+    //         HitCaster,
+    //         HitEmitter,
+    //     } state;
+    //     int bounce;
 
-        const Scene *scene = nullptr;
-        SMSConfig sms_config;
+    //     const Scene *scene = nullptr;
+    //     SMSConfig sms_config;
 
-        SurfaceInteraction3f si_endpoint;
-        std::vector<ShapePtr> specular_shapes;
-        std::vector<Point3f>  specular_positions;
+    //     SurfaceInteraction3f si_endpoint;
+    //     std::vector<ShapePtr> specular_shapes;
+    //     std::vector<Point3f>  specular_positions;
 
-        void init(const Scene *s, const SMSConfig &config) {
-            scene = s;
-            sms_config = config;
-            reset();
-        }
+    //     void init(const Scene *s, const SMSConfig &config) {
+    //         scene = s;
+    //         sms_config = config;
+    //         reset();
+    //     }
 
-        void reset() {
-            state = MNEEState::Default;
-            specular_shapes.clear();
-            specular_positions.clear();
-            bounce = -1;
-        }
+    //     void reset() {
+    //         state = MNEEState::Default;
+    //         specular_shapes.clear();
+    //         specular_positions.clear();
+    //         bounce = -1;
+    //     }
 
-        bool is_possible() const {
-            return state == MNEEState::HitEmitter && bounce == sms_config.bounces;
-        }
+    //     bool is_possible() const {
+    //         return state == MNEEState::HitEmitter && bounce == sms_config.bounces;
+    //     }
 
-        void state_transition(const SurfaceInteraction3f &next_si) {
-            // In any case, when we hit a caustic receiver we start from scratch
-            if (next_si.is_valid() &&
-                next_si.shape->is_caustic_receiver()) {
-                reset();
-                state = MNEEState::HitReceiver;
-                // Save this interaction for later
-                si_endpoint = next_si;
-                return;
-            }
+    //     void state_transition(const SurfaceInteraction3f &next_si) {
+    //         // In any case, when we hit a caustic receiver we start from scratch
+    //         if (next_si.is_valid() &&
+    //             next_si.shape->is_caustic_receiver()) {
+    //             reset();
+    //             state = MNEEState::HitReceiver;
+    //             // Save this interaction for later
+    //             si_endpoint = next_si;
+    //             return;
+    //         }
 
-            EmitterPtr emitter = next_si.emitter(scene);
+    //         EmitterPtr emitter = next_si.emitter(scene);
 
-            if (state == MNEEState::HitReceiver) {
-                // From here we should hit the first caustic caster
-                if (next_si.is_valid() &&
-                    next_si.shape->is_caustic_caster_multi_scatter()) {
-                    // Record hit and transition to HitCaster
-                    specular_shapes.push_back(next_si.shape);
-                    specular_positions.push_back(next_si.p);
-                    bounce = 1;
-                    state = MNEEState::HitCaster;
-                } else {
-                    reset();
-                }
-                return;
-            } else if (state == MNEEState::HitCaster) {
-                /* From here we can hit either caustic caster or bouncer to
-                   build up the specular chain
-                   or
-                   hit a light source and complete a potential MNEE path. */
-                if (bounce < sms_config.bounces &&
-                    next_si.is_valid() &&
-                    (next_si.shape->is_caustic_caster_multi_scatter() ||
-                     next_si.shape->is_caustic_bouncer())) {
-                    // Record hit but stay in this state
-                    specular_shapes.push_back(next_si.shape);
-                    specular_positions.push_back(next_si.p);
-                    bounce++;
-                } else if (bounce == sms_config.bounces &&
-                           emitter && emitter->is_caustic_emitter_multi_scatter()) {
-                    state = MNEEState::HitEmitter;
-                } else {
-                    reset();
-                }
-                return;
-            } else if (state == MNEEState::HitEmitter) {
-                // We completed a path. Reset now as the path was processed in the meantime.
-                reset();
-                return;
-            } else {
-                // Any other case, e.g. miss the scene
-                reset();
-                return;
-            }
-        }
-    };
+    //         if (state == MNEEState::HitReceiver) {
+    //             // From here we should hit the first caustic caster
+    //             if (next_si.is_valid() &&
+    //                 next_si.shape->is_caustic_caster_multi_scatter()) {
+    //                 // Record hit and transition to HitCaster
+    //                 specular_shapes.push_back(next_si.shape);
+    //                 specular_positions.push_back(next_si.p);
+    //                 bounce = 1;
+    //                 state = MNEEState::HitCaster;
+    //             } else {
+    //                 reset();
+    //             }
+    //             return;
+    //         } else if (state == MNEEState::HitCaster) {
+    //             /* From here we can hit either caustic caster or bouncer to
+    //                build up the specular chain
+    //                or
+    //                hit a light source and complete a potential MNEE path. */
+    //             if (bounce < sms_config.bounces &&
+    //                 next_si.is_valid() &&
+    //                 (next_si.shape->is_caustic_caster_multi_scatter() ||
+    //                  next_si.shape->is_caustic_bouncer())) {
+    //                 // Record hit but stay in this state
+    //                 specular_shapes.push_back(next_si.shape);
+    //                 specular_positions.push_back(next_si.p);
+    //                 bounce++;
+    //             } else if (bounce == sms_config.bounces &&
+    //                        emitter && emitter->is_caustic_emitter_multi_scatter()) {
+    //                 state = MNEEState::HitEmitter;
+    //             } else {
+    //                 reset();
+    //             }
+    //             return;
+    //         } else if (state == MNEEState::HitEmitter) {
+    //             // We completed a path. Reset now as the path was processed in the meantime.
+    //             reset();
+    //             return;
+    //         } else {
+    //             // Any other case, e.g. miss the scene
+    //             reset();
+    //             return;
+    //         }
+    //     }
+    // };
 
     struct WaveVariables{
         // write position
@@ -205,7 +205,7 @@ protected:
     };
 
     static inline ThreadLocal<VisnetSpecularManifoldMultiScatter> tl_manifold{};
-    static inline ThreadLocal<MNEEHelper> tl_mnee{};
+    // static inline ThreadLocal<MNEEHelper> tl_mnee{};
 
 public:
     VisnetMultiScatterSMSPathIntegrator(const Properties &props) : Base(props) {
@@ -213,7 +213,7 @@ public:
         m_sms_config.biased                 = props.bool_("biased", false);
         m_sms_config.twostage               = props.bool_("twostage", false);
         m_sms_config.halfvector_constraints = props.bool_("halfvector_constraints", false);
-        m_sms_config.mnee_init              = props.bool_("mnee_init", false);
+        // m_sms_config.mnee_init              = props.bool_("mnee_init", false);
         m_sms_config.step_scale             = props.float_("step_scale", 1.f);
         m_sms_config.max_iterations         = props.int_("max_iterations", 20);
         m_sms_config.solver_threshold       = props.float_("solver_threshold", 1e-5f);
@@ -223,7 +223,7 @@ public:
         m_sms_config.bounces                = props.int_("bounces", 2);
         m_sms_config.remove_pt_direct_hit   = props.bool_("remove_pt_direct_hit", false);
 
-        m_biased_mnee                  = props.bool_("biased_mnee", false);
+        // m_biased_mnee                  = props.bool_("biased_mnee", false);
 
         m_visnet_sms_config.visnet_enable = props.bool_("visnet_enable", false);
         m_visnet_sms_config.visnet_enable_threshold = props.int_("visnet_enable_threshold", 10000);
@@ -290,11 +290,11 @@ protected:
     SMSConfig m_sms_config;
     VisnetSMSConfig m_visnet_sms_config;
     bool m_device_gpu;
-    bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
+    // bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
     ScalarTransform4f m_to_model;
 
     // sample
-    void bounce_step(VisnetSpecularManifoldMultiScatter & mf, MNEEHelper & mnee, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene, const bool visnet_enable) const {
+    void bounce_step(VisnetSpecularManifoldMultiScatter & mf, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene, const bool visnet_enable) const {
         if(!variable_set.active){
             return;
         }
@@ -312,7 +312,7 @@ protected:
             variable_set.valid_ray = variable_set.si.is_valid();
             EmitterPtr emitter = variable_set.si.emitter(scene);
             // Keep track of state regarding previous bounces in order to do unbiased MNEE
-            mnee.state_transition(variable_set.si);
+            // mnee.state_transition(variable_set.si);
 
             if (emitter) {
                 variable_set.result += emitter->eval(variable_set.si);
@@ -415,7 +415,7 @@ protected:
         EmitterPtr emitter = si_bsdf.emitter(scene);
 
         // Keep track of state regarding previous bounces in order to do unbiased MNEE
-        mnee.state_transition(si_bsdf);
+        // mnee.state_transition(si_bsdf);
         // Hit emitter after BSDF sampling
         if (emitter && !m_sms_config.remove_pt_direct_hit) {
             /* With the same reasoning as in the emitter sampling case,
@@ -439,47 +439,48 @@ protected:
                                             0.f);
                 Float mis = mis_weight(bs.pdf, emitter_pdf);
                 variable_set.result += mis * variable_set.throughput * emitter_val;
-            } else if (m_sms_config.mnee_init && !m_biased_mnee &&
-                        mnee.is_possible()) {
-                /* These are the light paths that can be sampled with SMS.
-                    In case we're doing MNEE, only a single deterministic path
-                    can be generated though, and if we wish to stay unbiased
-                    we need to do an additional test here to see if MNEE could
-                    generate the currently found light connection as well.
-                    Note: Hanika et al. 2015 discuss a more advanced MIS strategy
-                    here that also accounts for the smooth probablility density
-                    from rough BSDFs. This could be added as well here. To
-                    support the rough case properly, the sampled half-vectors
-                    of specular paths to be tested with MNEE would need to be
-                    passed to the VisnetSpecularManifoldMultiScatter datastructure
-                    somehow. */
-
-                ShapePtr specular_shape = mnee.specular_shapes[0];
-                EmitterInteraction ei = SpecularManifold::emitter_interaction(scene, mnee.si_endpoint, si_bsdf);
-                bool success = mf.sample_path(specular_shape, mnee.si_endpoint, ei, variable_set.sampler, true);
-                if (success) {
-                    auto current_path = mf.current_path();
-                    for (size_t k = 0; k < current_path.size(); ++k) {
-                        Point3f p_pt = mnee.specular_positions[k],
-                                p_mnee = current_path[k].p;
-                        if (norm(p_pt - p_mnee) >= 1e-5f) {
-                            success = false;
-                        }
-                    }
-                }
-
-                if (!success) {
-                    /* MNEE could not find this path, so add it now.
-                        There is no MIS needed as we filtered out this class of paths
-                        in the emitter sampling strategy above. Note that the original
-                        paper about MNEE is more thorough here and does full MIS which
-                        improves the case of caustics from rough BSDFs. For simplicity
-                        we leave this out, but it could be added as well. In that
-                        case, we would also need to perform this "MNEE check" in the
-                        emitter sampling step above. */
-                    variable_set.result += variable_set.throughput * emitter->eval(si_bsdf);
-                }
             }
+            // else if (m_sms_config.mnee_init && !m_biased_mnee &&
+            //             mnee.is_possible()) {
+            //     /* These are the light paths that can be sampled with SMS.
+            //         In case we're doing MNEE, only a single deterministic path
+            //         can be generated though, and if we wish to stay unbiased
+            //         we need to do an additional test here to see if MNEE could
+            //         generate the currently found light connection as well.
+            //         Note: Hanika et al. 2015 discuss a more advanced MIS strategy
+            //         here that also accounts for the smooth probablility density
+            //         from rough BSDFs. This could be added as well here. To
+            //         support the rough case properly, the sampled half-vectors
+            //         of specular paths to be tested with MNEE would need to be
+            //         passed to the VisnetSpecularManifoldMultiScatter datastructure
+            //         somehow. */
+
+            //     ShapePtr specular_shape = mnee.specular_shapes[0];
+            //     EmitterInteraction ei = SpecularManifold::emitter_interaction(scene, mnee.si_endpoint, si_bsdf);
+            //     bool success = mf.sample_path(specular_shape, mnee.si_endpoint, ei, variable_set.sampler, true);
+            //     if (success) {
+            //         auto current_path = mf.current_path();
+            //         for (size_t k = 0; k < current_path.size(); ++k) {
+            //             Point3f p_pt = mnee.specular_positions[k],
+            //                     p_mnee = current_path[k].p;
+            //             if (norm(p_pt - p_mnee) >= 1e-5f) {
+            //                 success = false;
+            //             }
+            //         }
+            //     }
+
+            //     if (!success) {
+            //         /* MNEE could not find this path, so add it now.
+            //             There is no MIS needed as we filtered out this class of paths
+            //             in the emitter sampling strategy above. Note that the original
+            //             paper about MNEE is more thorough here and does full MIS which
+            //             improves the case of caustics from rough BSDFs. For simplicity
+            //             we leave this out, but it could be added as well. In that
+            //             case, we would also need to perform this "MNEE check" in the
+            //             emitter sampling step above. */
+            //         variable_set.result += variable_set.throughput * emitter->eval(si_bsdf);
+            //     }
+            // }
         }
 
         variable_set.si = std::move(si_bsdf);
@@ -657,8 +658,8 @@ protected:
                         
                         auto &mf = (VisnetSpecularManifoldMultiScatter &)tl_manifold;
                         mf.init(scene, m_sms_config);
-                        auto &mnee = (MNEEHelper &)tl_mnee;
-                        mnee.init(scene, m_sms_config);
+                        // auto &mnee = (MNEEHelper &)tl_mnee;
+                        // mnee.init(scene, m_sms_config);
 
                         for (auto i = range.begin(); i != range.end() && !should_stop(); ++i) {
                             WaveVariables& variable_set = wave_variables[compact_map[i]];
@@ -679,7 +680,7 @@ protected:
                                     }
                                 }
                             }
-                            bounce_step(mf, mnee, variable_set, depth, sensor->medium(), scene, visnet_enable);
+                            bounce_step(mf, variable_set, depth, sensor->medium(), scene, visnet_enable);
                         }
                     }
                 );
