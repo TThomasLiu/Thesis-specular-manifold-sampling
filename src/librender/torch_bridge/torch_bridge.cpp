@@ -254,6 +254,7 @@ void FlowModelBridge::flow_forward(const float* input_data, const float* model_t
 
     int p = 2;
     auto time_grid = torch::linspace(0.0, 1.0, step_count + 1, option);
+    time_grid = 1.0 - torch::pow(1.0 - time_grid, p);
 
     // TODO: connect to sample_flow_direction
     auto [direction, weight] = sample_flow_direction(*m_impl, points_tensor, model_to_world_tensor, time_grid, option);
