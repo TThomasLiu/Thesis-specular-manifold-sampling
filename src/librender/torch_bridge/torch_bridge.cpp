@@ -188,7 +188,7 @@ std::pair<torch::Tensor, torch::Tensor> sample_flow_direction(
     auto x_0 = sample_uniform_disk(n, options);
     auto [model_output, log_det] = sample_and_likelihood(impl, x_0, points, log_p0, time_grid);
 
-   auto sampled_direction = torch::matmul(stereographic_to_direction(model_output), obj_to_world_rotation.t());
+    auto sampled_direction = torch::matmul(stereographic_to_direction(model_output), obj_to_world_rotation.t());
     sampled_direction = sampled_direction / sampled_direction.norm(2, -1, /*keepdim=*/true);
 
     auto inv_symlog_output = inv_symlog(model_output);
@@ -196,6 +196,10 @@ std::pair<torch::Tensor, torch::Tensor> sample_flow_direction(
     auto local_log_p = log_det - transformation_logdet;
     // 1.0 / exp(x), not exp(-x) - see PART 1b and sample_flow_direction's own comment.
     auto sampled_weight = 1.0 / torch::exp(local_log_p);
+    if (sampled_weight.isnan().any().item<bool>()) {
+        sampled_weight = torch::where(sampled_weight.isnan(), torch::zeros_like(sampled_weight), sampled_weight);
+        // std::cerr << "[sample_flow_direction] WARNING: NaN values in sampled_weight, replaced with zeros." << std::endl;
+    }
 
     return {sampled_direction, sampled_weight};
 }

@@ -259,10 +259,15 @@ public:
             if(shape->is_caustic_receiver()){
                 // get si distance to the receiver
                 Float dist = norm(si.p - variable_set.si.p);
-                Float weight = gaussian_weight_2d(dist, 0.01f, 3.f);
-                variable_set.flow_weight *= weight;
+                Float weight = gaussian_weight_2d(dist, m_noise_std, 3.f);
 
-                if (i != 2) {
+                variable_set.flow_weight *= weight;
+                if (isnan(variable_set.flow_weight) || isinf(variable_set.flow_weight)) {
+                    variable_set.flow_weight = 0.f;
+                    return 0.f; 
+                }
+                if (i != m_sms_config.bounces) {
+                    variable_set.flow_weight = 0.f;
                     return 0.f;
                 }
                 success = true;
@@ -277,7 +282,8 @@ public:
 
             si.compute_partials(ray);
 
-            BSDFContext ctx;
+            BSDFContext ctx(mitsuba::TransportMode::Importance);
+            // BSDFContext ctx;
             ctx.sampler = variable_set.sampler;
             BSDFPtr bsdf = si.bsdf(ray);
 
@@ -299,10 +305,13 @@ public:
 
         BSDFPtr bsdf = variable_set.si.bsdf(variable_set.ray);
         BSDFContext ctx;
-        ctx.sampler = variable_set.sampler;
+        // BSDFContext ctx(mitsuba::TransportMode::Importance);
+        Vector3f direction = normalize(ray.o - variable_set.si.p);
+        // Vector3f wo = variable_set.si.to_local(-ray.d);
+        Vector3f wo = variable_set.si.to_local(direction);
+        Spectrum bsdf_weight = bsdf->eval(ctx, variable_set.si, wo);
+        // bsdf_weight = variable_set.si.to_world_mueller(bsdf_weight, -wo, variable_set.si.wi);
 
-        auto bsdf_weight = bsdf->eval(ctx, variable_set.si, ray.d);
-        bsdf_weight = variable_set.si.to_world_mueller(bsdf_weight, ray.d, variable_set.si.wi);
         throughput = throughput * bsdf_weight;
         return throughput;
     }
@@ -366,7 +375,8 @@ protected:
             EmitterPtr emitter = variable_set.si.emitter(scene);
 
             if (emitter) {
-                variable_set.result += emitter->eval(variable_set.si);
+                // variable_set.result += emitter->eval(variable_set.si);
+                variable_set.active = false;
             }
             return;
         }
@@ -396,7 +406,9 @@ protected:
                                     variable_set.si.shape->is_caustic_bouncer();
 
         if (variable_set.si.shape->is_caustic_receiver() && !on_caustic_caster &&
-            (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)&& variable_set.enable) {
+            (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)&& variable_set.enable&&
+            !(isnan(variable_set.flow_weight) || isinf(variable_set.flow_weight))
+        ) {
 
             // TODO: caustic rendering logics
 
@@ -433,6 +445,7 @@ protected:
                 or aren't interacting with a caustic caster now, do
                 emitter sampling as usual. */
             auto [ds, emitter_weight] = scene->sample_emitter_direction(variable_set.si, variable_set.sampler->next_2d(), true);
+
             if (ds.pdf != 0.f) {
                 // Query the BSDF for that emitter-sampled direction
                 Vector3f wo = variable_set.si.to_local(ds.d);
@@ -743,6 +756,9 @@ protected:
                     aovs[0] = xyz.x();
                     aovs[1] = xyz.y();
                     aovs[2] = xyz.z();
+                    // aovs[0] = variable_set.flow_weight;
+                    // aovs[1] = variable_set.flow_weight;
+                    // aovs[2] = variable_set.flow_weight;
                     aovs[3] = select(variable_set.valid_ray, Float(1.f), Float(0.f));
                     aovs[4] = 1.f;
 

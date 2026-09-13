@@ -43,7 +43,42 @@
         <string name="filename" value="meshes/plane_1.obj"/>
         <string name="visnet_model_path" value="model/sms_fig18_all_path_3L_32h_vis.pt"/>
         <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_noise001_fm.pt"/> -->
-        <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_noise001_fm.pt"/>
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far3_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far4_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_30M_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far3_30M_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nonuniformpoint_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_uniformT_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_10L_h400_b2_far5_30M_nerfflow2_fullposenc_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_10L_h400_b2_far5_nerfflow2_fullposenc_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_fullposenc_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_30M_nerfflow2_fullposenc_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_fullonlyposenc_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_resflow_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_10L_h512_b2_far5_nerfflow2_fullonlyposenc_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_embedandinputskip_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_embedandinputskip_highfreq_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_modelinputskip_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far3_nerfflow2_embedskip_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_30M_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_nonuniformT_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_nonuniformT_noise001_2_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_nonuniformT_spatnorm_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normandoffset_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_norm_inputskip_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_nonuniformT_30M_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_nonuniformT_embedskip_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far4_nerfflow2_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_norm_inputskip_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_norm_inputskip_30M_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_30M_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_30M_noise001_2_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_nonuniformPoint_normoffset_inputskip_30M_noise001_fm.pt"/> -->
+        <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_noise001_2_fm.pt"/>
         <boolean name="caustic_caster_multi" value="true"/>
 
         <bsdf type="dielectric">

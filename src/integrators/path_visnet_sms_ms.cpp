@@ -315,7 +315,8 @@ protected:
             // mnee.state_transition(variable_set.si);
 
             if (emitter) {
-                variable_set.result += emitter->eval(variable_set.si);
+                // variable_set.result += emitter->eval(variable_set.si);
+                variable_set.active = false;
             }
             return;
         }
