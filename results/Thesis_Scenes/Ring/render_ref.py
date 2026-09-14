@@ -14,7 +14,7 @@ def run_cmd(command, name):
         file.write(log_str)
 
 # 5 min for all methods that we want to compare
-timeout = 1*60*60
+timeout = 1*60*30
 # timeout = 5
 # timeout = 30
 

@@ -79,6 +79,7 @@
         <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_30M_noise001_2_fm.pt"/> -->
         <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_nonuniformPoint_normoffset_inputskip_30M_noise001_fm.pt"/> -->
         <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_noise001_2_fm.pt"/>
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow3_noise001_fm.pt"/> -->
         <boolean name="caustic_caster_multi" value="true"/>
 
         <bsdf type="dielectric">

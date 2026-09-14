@@ -26,8 +26,8 @@ name = "ring_sms_test"
 cmd = "mitsuba "
 cmd += "sms_visnet_ring.xml "
 cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-# cmd += "-Dspp=5 "
+# cmd += "-Dspp=999999999 "
+cmd += "-Dspp=1 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
@@ -35,7 +35,7 @@ cmd += "-Dcaustics_biased=false "
 # cmd += "-Dcaustics_max_trials={} ".format(8)
 cmd += "-Dvisnet_enable=false "
 # print(cmd)
-# run_cmd(cmd, name)
+run_cmd(cmd, name)
 
 
 name = "ring_visnet_sms_test"
@@ -43,13 +43,13 @@ cmd = "mitsuba "
 cmd += "sms_visnet_ring.xml "
 cmd += "-o results/{}.exr ".format(name)
 # cmd += "-Dspp=999999999 "
-cmd += "-Dspp=10 "
+cmd += "-Dspp=1 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
 
 # cmd += "-Dcaustics_biased=true "
-# cmd += "-Dcaustics_max_trials=8 "
+# cmd += "-Dcaustics_max_trials=16 "
 
 cmd += "-Dmodel_device=gpu "
 cmd += "-Dvisnet_enable=true "
@@ -65,7 +65,7 @@ cmd = "mitsuba "
 cmd += "ring_flow.xml "
 cmd += "-o results/{}.exr ".format(name)
 # cmd += "-Dspp=999999999 "
-cmd += "-Dspp=10 "
+cmd += "-Dspp=1 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
@@ -78,6 +78,6 @@ cmd += "-Dvisnet_enable=true "
 cmd += "-Dvisnet_threshold=0.4 "
 
 cmd += "-Dblock_size={} ".format(256)
-print(cmd)
-run_cmd(cmd, name)
+# print(cmd)
+# run_cmd(cmd, name)
 

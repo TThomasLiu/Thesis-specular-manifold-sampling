@@ -17,7 +17,7 @@
     <default name="visnet_enable"                   value="true"/>
     <default name="visnet_threshold"                value="0.4"/>
     <default name="rmax"                            value="3.0"/>
-    <default name="noise_std"                       value="0.01"/>
+    <default name="noise_std"                       value="0.005"/>
 
     <default name="caustics_bounces"                value="1"/>
 
@@ -42,10 +42,11 @@
     <shape type="obj" id="target_obj">
         <boolean name="caustic_caster_multi" value="true"/>
         <string name="visnet_model_path" value="model/ring_far5_visnet2_3L_32h_test_1_vis.pt"/>
-        <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow2_normoffset_inputskip_noise001_fm.pt"/>
+        <!-- <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow2_normoffset_inputskip_noise001_fm.pt"/> -->
+        <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow2_noise0005_fm.pt"/>
         <!-- <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow3_noise001_fm.pt"/> -->
         <transform name="to_world">
-            <!-- <rotate y="1" angle="90"/> -->
+            
             <!-- <rotate x="1" angle="10"/> -->
             <!-- <translate x="0" y="-0.96" z="0"/> -->
             <translate x="0" y="0.125" z="0"/>
@@ -63,10 +64,11 @@
 
         <bsdf type="diffuse">
             <spectrum name="reflectance" type="bitmap">
-                <string name="filename" value="textures/[2K]Wood30/Wood030_2K_Color.jpg"/>
+                <!-- <string name="filename" value="textures/[2K]Wood30/Wood030_2K_Color.jpg"/> -->
+                <string name="filename" value="textures/[2K]Tiles71/Tiles71_col.jpg"/>
 
                 <transform name="to_uv">
-                    <scale x="3" y="3"/>
+                    <scale x="10" y="10"/>
                 </transform>
             </spectrum>
         </bsdf>
@@ -76,16 +78,22 @@
         <string name="filename" value="meshes/light.obj" />
 
         <emitter type="area">
-            <spectrum name="radiance" value="10000"/>
+            <spectrum name="radiance" value="5000"/>
             <boolean name="caustic_emitter_multi" value="true"/>
         </emitter>
 
         <transform name="to_world">
+            <rotate y="1" angle="90"/>
             <translate x="0" y="0" z="0.1"/>
             <rotate x="0.0" y="1.0" z="0.0" angle="$light_angle"/>
         </transform>
     </shape>
-
+    
+    <!-- <emitter type="point">
+        <spectrum name="intensity" value="50"/>
+        <point name="position" value="-1.8, 1, 0"/>
+        <boolean name="caustic_emitter_multi" value="true"/>
+    </emitter> -->
     <film type="hdrfilm" id="film">
             <integer name="width" value="1024"/>
             <integer name="height" value="1024"/>

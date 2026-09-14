@@ -82,10 +82,11 @@
 
         <bsdf type="diffuse">
             <spectrum name="reflectance" type="bitmap">
-                <string name="filename" value="textures/[2K]Wood30/Wood030_2K_Color.jpg"/>
+                <!-- <string name="filename" value="textures/[2K]Wood30/Wood030_2K_Color.jpg"/> -->
+                <string name="filename" value="textures/[2K]Tiles71/Tiles71_col.jpg"/>
 
                 <transform name="to_uv">
-                    <scale x="3" y="3"/>
+                    <scale x="10" y="10"/>
                 </transform>
             </spectrum>
         </bsdf>
@@ -95,15 +96,23 @@
         <string name="filename" value="meshes/light.obj" />
 
         <emitter type="area">
-            <spectrum name="radiance" value="10000"/>
+            <spectrum name="radiance" value="5000"/>
             <boolean name="caustic_emitter_multi" value="true"/>
         </emitter>
 
         <transform name="to_world">
+            <rotate y="1" angle="90"/>
             <translate x="0" y="0" z="0.1"/>
             <rotate x="0.0" y="1.0" z="0.0" angle="$light_angle"/>
         </transform>
     </shape>
+<!-- 
+    <emitter type="point">
+        <spectrum name="intensity" value="50"/>
+        <point name="position" value="-1.8, 1, 0"/>
+        <boolean name="caustic_emitter_multi" value="true"/>
+    </emitter> -->
+
 
     <film type="hdrfilm" id="film">
             <integer name="width" value="1024"/>

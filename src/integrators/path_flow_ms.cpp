@@ -91,7 +91,8 @@ protected:
         
         bool enable= true;
         Vector3f flow_direction;
-        float flow_weight = 1.0f;
+        double flow_weight = 1.0f;
+        float test = 0.0f;
 
         Spectrum throughput;
         SurfaceInteraction3f si;
@@ -102,6 +103,7 @@ protected:
         Mask valid_ray;
 
         void reset() {
+            test = 0;
             ray_weight = 1.f;
             throughput = 1.f;
             result = 0.f;
@@ -259,13 +261,10 @@ public:
             if(shape->is_caustic_receiver()){
                 // get si distance to the receiver
                 Float dist = norm(si.p - variable_set.si.p);
-                Float weight = gaussian_weight_2d(dist, m_noise_std, 3.f);
+                Float weight = gaussian_weight_2d(dist, m_noise_std, m_rmax);
 
                 variable_set.flow_weight *= weight;
-                if (isnan(variable_set.flow_weight) || isinf(variable_set.flow_weight)) {
-                    variable_set.flow_weight = 0.f;
-                    return 0.f; 
-                }
+                variable_set.test = variable_set.flow_weight;
                 if (i != m_sms_config.bounces) {
                     variable_set.flow_weight = 0.f;
                     return 0.f;
@@ -411,10 +410,11 @@ protected:
         ) {
 
             // TODO: caustic rendering logics
-
-            Spectrum photon_result = trace_photon(scene, variable_set, m_sms_config.bounces + 1);
             
-            variable_set.result += variable_set.throughput * photon_result * variable_set.flow_weight * variable_set.ei.weight;
+            Spectrum photon_result = trace_photon(scene, variable_set, m_sms_config.bounces + 1);
+            if (!(isnan(variable_set.flow_weight) || isinf(variable_set.flow_weight))) {
+                variable_set.result += variable_set.throughput * photon_result * variable_set.ei.weight * variable_set.flow_weight;
+            }
         }
 
         // --------------------- Emitter sampling ---------------------
@@ -753,12 +753,17 @@ protected:
                         xyz = spectrum_to_xyz(spec_u, variable_set.ray_.wavelengths, true);
                     }
 
+                    if(any(isnan(xyz) || isinf(xyz))){
+                        // xyz = Vector3f(0.f, 0.f, 0.f);
+                        std::cout<<"nan or inf in xyz"<<std::endl;
+                    }
+
                     aovs[0] = xyz.x();
                     aovs[1] = xyz.y();
                     aovs[2] = xyz.z();
-                    // aovs[0] = variable_set.flow_weight;
-                    // aovs[1] = variable_set.flow_weight;
-                    // aovs[2] = variable_set.flow_weight;
+                    // aovs[0] = variable_set.test;
+                    // aovs[1] = variable_set.test;
+                    // aovs[2] = variable_set.test;
                     aovs[3] = select(variable_set.valid_ray, Float(1.f), Float(0.f));
                     aovs[4] = 1.f;
 
