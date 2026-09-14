@@ -43,6 +43,7 @@
         <boolean name="caustic_caster_multi" value="true"/>
         <string name="visnet_model_path" value="model/ring_far5_visnet2_3L_32h_test_1_vis.pt"/>
         <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow2_normoffset_inputskip_noise001_fm.pt"/>
+        <!-- <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow3_noise001_fm.pt"/> -->
         <transform name="to_world">
             <!-- <rotate y="1" angle="90"/> -->
             <!-- <rotate x="1" angle="10"/> -->

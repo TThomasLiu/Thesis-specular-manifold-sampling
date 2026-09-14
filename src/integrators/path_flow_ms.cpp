@@ -220,7 +220,7 @@ public:
 
         Float r_max_scaled = r_max * std_dev;
 
-        Float eps_c = exp(Float(-0.5) * (r_max_scaled / std_dev) * (r_max_scaled / std_dev));  // tail mass beyond r_max
+        Float eps_c = exp(Float(-0.5) * r_max * r_max);  // tail mass beyond r_max
         Float norm_const = Float(2) * math::Pi<Float> * std_dev * std_dev * (Float(1) - eps_c);
 
         Float diff = (r) / std_dev;
@@ -703,9 +703,9 @@ protected:
 
 
 
-                            std::cout<<"flow_enable_count: "<<flow_enable_count<<std::endl;
                             if(flow_enable_count > 0){
-                                torch_flow_forward(model_inputs.data(), m_flat_to_world.data(), flow_direction.data(), flow_direction_weight.data(), flow_enable_count, 10);
+                                std::cout<<"flow_enable_count: "<<flow_enable_count<<std::endl;
+                                torch_flow_forward(model_inputs.data(), m_flat_to_world.data(), flow_direction.data(), flow_direction_weight.data(), flow_enable_count, 8);
                                 std::cout<<"called flow model"<<std::endl;
                             }
 

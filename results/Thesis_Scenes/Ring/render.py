@@ -42,8 +42,8 @@ name = "ring_visnet_sms_test"
 cmd = "mitsuba "
 cmd += "sms_visnet_ring.xml "
 cmd += "-o results/{}.exr ".format(name)
-cmd += "-Dspp=999999999 "
-# cmd += "-Dspp=5 "
+# cmd += "-Dspp=999999999 "
+cmd += "-Dspp=10 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
@@ -58,14 +58,14 @@ cmd += "-Dvisnet_threshold=0.3 "
 
 cmd += "-Dblock_size={} ".format(block_size)
 # print(cmd)
-# run_cmd(cmd, name)
+run_cmd(cmd, name)
 
 name = "ring_flow_test"
 cmd = "mitsuba "
 cmd += "ring_flow.xml "
 cmd += "-o results/{}.exr ".format(name)
 # cmd += "-Dspp=999999999 "
-cmd += "-Dspp=16 "
+cmd += "-Dspp=10 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
