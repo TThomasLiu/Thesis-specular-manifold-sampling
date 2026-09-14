@@ -181,6 +181,8 @@ protected:
         int compact_index = 0;
         Float eta = 1.f;
 
+        float test = 0.0f;
+
         Spectrum throughput;
         SurfaceInteraction3f si;
         EmitterInteraction ei;
@@ -190,6 +192,7 @@ protected:
         Mask valid_ray;
 
         void reset() {
+            test = 0.0f;
             ray_weight = 1.f;
             throughput = 1.f;
             result = 0.f;
@@ -347,7 +350,7 @@ protected:
 
         if (variable_set.si.shape->is_caustic_receiver() && !on_caustic_caster &&
             (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)) {
-            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.si, variable_set.sampler, variable_set.ei, !visnet_enable || variable_set.enable) * variable_set.sample_weight;
+            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.test, variable_set.si, variable_set.sampler, variable_set.ei, !visnet_enable || variable_set.enable) * variable_set.sample_weight;
         }
 
         // --------------------- Emitter sampling ---------------------
@@ -708,6 +711,10 @@ protected:
                     aovs[0] = xyz.x();
                     aovs[1] = xyz.y();
                     aovs[2] = xyz.z();
+
+                    // aovs[0] = variable_set.test;
+                    // aovs[1] = variable_set.test;
+                    // aovs[2] = variable_set.test;
                     aovs[3] = select(variable_set.valid_ray, Float(1.f), Float(0.f));
                     aovs[4] = 1.f;
 

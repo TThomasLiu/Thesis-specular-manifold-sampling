@@ -264,11 +264,11 @@ public:
                 Float weight = gaussian_weight_2d(dist, m_noise_std, m_rmax);
 
                 variable_set.flow_weight *= weight;
-                variable_set.test = variable_set.flow_weight;
                 if (i != m_sms_config.bounces) {
                     variable_set.flow_weight = 0.f;
                     return 0.f;
                 }
+                // variable_set.test = i == m_sms_config.bounces;
                 success = true;
                 break;
             }
@@ -303,11 +303,12 @@ public:
         }
 
         BSDFPtr bsdf = variable_set.si.bsdf(variable_set.ray);
-        BSDFContext ctx;
-        // BSDFContext ctx(mitsuba::TransportMode::Importance);
-        Vector3f direction = normalize(ray.o - variable_set.si.p);
+        // BSDFContext ctx;
+        BSDFContext ctx(mitsuba::TransportMode::Importance);
+        // Vector3f direction = normalize(ray.o - variable_set.si.p);
         // Vector3f wo = variable_set.si.to_local(-ray.d);
-        Vector3f wo = variable_set.si.to_local(direction);
+        Vector3f wo = variable_set.si.to_local(-variable_set.ray.d);
+        // Vector3f wo = variable_set.si.to_local(direction);
         Spectrum bsdf_weight = bsdf->eval(ctx, variable_set.si, wo);
         // bsdf_weight = variable_set.si.to_world_mueller(bsdf_weight, -wo, variable_set.si.wi);
 

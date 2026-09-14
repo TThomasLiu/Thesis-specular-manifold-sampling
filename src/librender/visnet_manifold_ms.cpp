@@ -32,7 +32,7 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
 }
 
 MTS_VARIANT Spectrum
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(const SurfaceInteraction3f &si,
+VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(float& test_output, const SurfaceInteraction3f &si,
                                                                           ref<Sampler> sampler, const EmitterInteraction& ei, const int external_enable) {
     ScopedPhase scope_phase(ProfilerPhase::SMSCaustics);
 
@@ -160,6 +160,7 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(
                 value = 0.f;
             }else{
                 value = bsdf_val * specular_val * inv_prob_estimate;
+                // test_output = inv_prob_estimate;
             }
         } else {
             // Biased SMS

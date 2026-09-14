@@ -16,8 +16,8 @@
     <default name="model_device"                    value="gpu"/>
     <default name="visnet_enable"                   value="true"/>
     <default name="visnet_threshold"                value="0.4"/>
-    <default name="rmax"                            value="3.0"/>
-    <default name="noise_std"                       value="0.005"/>
+    <default name="rmax"                            value="1.5"/>
+    <default name="noise_std"                       value="0.01"/>
 
     <default name="caustics_bounces"                value="1"/>
 
@@ -42,8 +42,8 @@
     <shape type="obj" id="target_obj">
         <boolean name="caustic_caster_multi" value="true"/>
         <string name="visnet_model_path" value="model/ring_far5_visnet2_3L_32h_test_1_vis.pt"/>
-        <!-- <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow2_normoffset_inputskip_noise001_fm.pt"/> -->
-        <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow2_noise0005_fm.pt"/>
+        <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow2_normoffset_inputskip_noise001_fm.pt"/>
+        <!-- <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow2_noise0005_fm.pt"/> -->
         <!-- <string name="flow_model_path" value="model/ring_din_disk_20L_h256_b1_far5_nerfflow3_noise001_fm.pt"/> -->
         <transform name="to_world">
             

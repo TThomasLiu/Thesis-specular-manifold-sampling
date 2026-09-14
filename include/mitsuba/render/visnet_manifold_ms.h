@@ -47,7 +47,8 @@ public:
      *     An estimate of the (single-bounce) caustic path contribution at
      *     the desired shading point.
      */
-    Spectrum specular_manifold_sampling(const SurfaceInteraction3f &si,
+    Spectrum specular_manifold_sampling(float& test_output,
+                                        const SurfaceInteraction3f &si,
                                         ref<Sampler> sampler,
                                         const EmitterInteraction& ei,
                                         const int external_enable
