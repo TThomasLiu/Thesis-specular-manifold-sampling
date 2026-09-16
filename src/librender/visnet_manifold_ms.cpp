@@ -12,6 +12,7 @@ inline void update_max(std::atomic<T> & atom, const T val) {
 }
 
 MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_external_reject(0);
+MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_external_accept(0);
 MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_failed(0);
 MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_succeeded(0);
 MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_calls(0);
@@ -88,6 +89,7 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(
         stats_external_reject++;
         return 0.f;
     }
+    stats_external_accept++;
 
     // Sample emitter interaction
     // EmitterInteraction ei = SpecularManifold::sample_emitter_interaction(si, m_scene->caustic_emitters_multi_scatter(), sampler);
@@ -160,7 +162,6 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(
                 value = 0.f;
             }else{
                 value = bsdf_val * specular_val * inv_prob_estimate;
-                // test_output = inv_prob_estimate;
             }
         } else {
             // Biased SMS
@@ -1296,15 +1297,15 @@ MTS_VARIANT void VisnetSpecularManifoldMultiScatter<Float, Spectrum>::print_stat
     std::cout << "----------------------------------------------------------" << std::endl;
     std::cout << "    Specular Manifold Sampling Statistics" << std::endl;
     std::cout << "----------------------------------------------------------" << std::endl;
+    std::cout << std::setw(25) << std::left << "External rejects: "
+              << std::setw(10) << std::right << stats_external_reject << " "
+              << std::setw(8) << "(" << 100*Float(stats_external_reject) / (stats_external_accept + stats_external_reject) << "%)" << std::endl;
     std::cout << std::setw(25) << std::left << "Solver succeeded: "
               << std::setw(10) << std::right << stats_solver_succeeded << " "
               << std::setw(8) << "(" << 100*solver_success_ratio << "%)" << std::endl;
     std::cout << std::setw(25) << std::left << "Solver failed: "
               << std::setw(10) << std::right << stats_solver_failed << " "
               << std::setw(8) << "(" << 100*solver_fail_ratio << "%)" << std::endl;
-    std::cout << std::setw(25) << std::left << "External rejects: "
-              << std::setw(10) << std::right << stats_external_reject << " "
-              << std::setw(8) << "(" << 100*Float(stats_external_reject) / (stats_solver_succeeded + stats_solver_failed + stats_external_reject) << "%)" << std::endl;
     std::cout << std::endl;
 
     Float stats_booth_avg_iterations = Float(stats_bernoulli_trial_iterations) / stats_bernoulli_trial_calls;

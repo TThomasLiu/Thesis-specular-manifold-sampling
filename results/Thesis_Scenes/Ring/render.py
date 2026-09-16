@@ -65,7 +65,7 @@ cmd = "mitsuba "
 cmd += "ring_flow.xml "
 cmd += "-o results/{}.exr ".format(name)
 # cmd += "-Dspp=999999999 "
-cmd += "-Dspp=1 "
+cmd += "-Dspp=10 "
 cmd += "-Dsamples_per_pass=1 "
 cmd += "-Dtimeout={} ".format(timeout)
 cmd += "-Dcaustics_biased=false "
@@ -79,5 +79,5 @@ cmd += "-Dvisnet_threshold=0.4 "
 
 cmd += "-Dblock_size={} ".format(256)
 # print(cmd)
-run_cmd(cmd, name)
+# run_cmd(cmd, name)
 

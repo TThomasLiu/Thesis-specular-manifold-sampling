@@ -268,7 +268,7 @@ public:
                     variable_set.flow_weight = 0.f;
                     return 0.f;
                 }
-                // variable_set.test = i == m_sms_config.bounces;
+                // variable_set.test = variable_set.flow_weight;
                 success = true;
                 break;
             }

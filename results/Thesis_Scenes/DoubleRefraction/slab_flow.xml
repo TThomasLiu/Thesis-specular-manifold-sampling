@@ -16,7 +16,7 @@
     <default name="model_device"                    value="gpu"/>
     <default name="visnet_enable"                   value="true"/>
     <default name="visnet_threshold"                value="0.4"/>
-    <default name="rmax"                            value="3.0"/>
+    <default name="rmax"                            value="1.5"/>
     <default name="noise_std"                       value="0.01"/>
 
     <default name="caustics_bounces"                value="2"/>
@@ -78,7 +78,10 @@
         <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_30M_noise001_fm.pt"/> -->
         <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_30M_noise001_2_fm.pt"/> -->
         <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_nonuniformPoint_normoffset_inputskip_30M_noise001_fm.pt"/> -->
-        <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_noise001_2_fm.pt"/>
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_normoffset_inputskip_noise001_2_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_10L_h256_b2_far5_nerfflow2_30M_noise001_fm.pt"/> -->
+        <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_30M_noise001_fm.pt"/> -->
+        <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow2_noise001_fm.pt"/>
         <!-- <string name="flow_model_path" value="model/slab_smsfig18_din_disk_20L_h256_b2_far5_nerfflow3_noise001_fm.pt"/> -->
         <boolean name="caustic_caster_multi" value="true"/>
 
