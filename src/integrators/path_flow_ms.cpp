@@ -132,6 +132,7 @@ public:
 
         m_rmax = props.float_("rmax", 3.0f);
         m_noise_std = props.float_("noise_std", 0.01f);
+        m_photon_mode = props.bool_("photon_mode", true);
         
         std::string model_device = props.string("model_device", "gpu");
         if (model_device == "gpu") {
@@ -316,6 +317,69 @@ public:
         return throughput;
     }
 
+    Spectrum trace_path(const Scene* scene, WaveVariables& variable_set, int depth) const {
+        Spectrum throughput(1.0f);
+        Ray3f ray(variable_set.si.p, variable_set.flow_direction, variable_set.si.time, variable_set.si.wavelengths);
+
+        SurfaceInteraction3f si;
+        bool success= false;
+
+        // si bsdf
+        BSDFContext ctx;
+        Spectrum bsdf_weight = variable_set.si.bsdf()->eval(ctx, variable_set.si, variable_set.si.to_local(variable_set.flow_direction));
+        throughput = throughput * bsdf_weight;
+
+        for(int i = 0; i < depth; ++i){
+            si = scene->ray_intersect(ray);
+            const ShapePtr shape = si.shape;
+
+            
+            if(!si.is_valid()){
+                variable_set.flow_weight = 0.f;
+                return 0.f;
+            }
+            
+            if(!shape->is_caustic_caster_multi_scatter() &&
+            !shape->is_caustic_bouncer()){
+                if(i == m_sms_config.bounces){
+                    Float dist = norm(si.p - variable_set.ei.p);
+                    Float weight = gaussian_weight_2d(dist, m_noise_std, m_rmax);
+                    variable_set.flow_weight *= weight;
+                    success = true;
+                    break;
+                }
+                variable_set.flow_weight = 0.f;
+                return 0.f;
+            }
+
+
+            si.compute_partials(ray);
+
+            BSDFContext ctx;
+            ctx.sampler = variable_set.sampler;
+            BSDFPtr bsdf = si.bsdf(ray);
+
+            // Sample a new direction
+            auto [bs, bsdf_weight] = bsdf->sample(ctx, si, variable_set.sampler->next_1d(), variable_set.sampler->next_2d());
+            bsdf_weight = si.to_world_mueller(bsdf_weight, -bs.wo, si.wi);
+            throughput = throughput * bsdf_weight;
+            if (all(eq(throughput, 0.f))){
+                variable_set.flow_weight = 0.f;
+                return 0.f;
+            }
+
+            // Update the ray for the next bounce
+            ray = si.spawn_ray(si.to_world(bs.wo));
+        }
+
+        if(!success){
+            variable_set.flow_weight = 0.f;
+            return 0.0f;
+        }
+        
+        return throughput;
+    }
+
     std::pair<Spectrum, Mask> sample(const Scene *scene,
                                      Sampler *sampler,
                                      const RayDifferential3f &ray_,
@@ -348,6 +412,7 @@ protected:
     SMSConfig m_sms_config;
     VisnetSMSConfig m_visnet_sms_config;
     bool m_device_gpu;
+    bool m_photon_mode = true; // true: trace photon from light to camera, false: trace path from camera to light
     bool m_biased_mnee;      // Make MNEE biased by filtering out caustic paths that can't be sampled with it
     ScalarTransform4f m_to_model;
     float m_rmax;
@@ -412,9 +477,14 @@ protected:
 
             // TODO: caustic rendering logics
             
-            Spectrum photon_result = trace_photon(scene, variable_set, m_sms_config.bounces + 1);
-            if (!(isnan(variable_set.flow_weight) || isinf(variable_set.flow_weight))) {
-                variable_set.result += variable_set.throughput * photon_result * variable_set.ei.weight * variable_set.flow_weight;
+            Spectrum result = 0.f;
+            if(this->m_photon_mode){
+                result = trace_photon(scene, variable_set, m_sms_config.bounces + 1);
+            }else{
+                result = trace_path(scene, variable_set, m_sms_config.bounces + 1);
+            }
+            if (!(isnan(variable_set.flow_weight) || isinf(variable_set.flow_weight))&& variable_set.flow_weight < 50.f) {
+                variable_set.result += variable_set.throughput * result * variable_set.ei.weight * variable_set.flow_weight;
             }
         }
 
@@ -689,7 +759,15 @@ protected:
                                 if(variable_set.model_index == -1) continue;
 
                                 if(model_outputs[variable_set.model_index]){
-                                    memcpy(&temp_model_inputs[flow_enable_count * 6], &model_inputs[variable_set.model_index * 6], sizeof(float) * 6);
+                                    // swap model_input if trace path
+                                    if(this->m_photon_mode){
+                                        // photon mode
+                                        memcpy(&temp_model_inputs[flow_enable_count * 6], &model_inputs[variable_set.model_index * 6], sizeof(float) * 6);
+                                    }else{
+                                        // path mode
+                                        memcpy(&temp_model_inputs[flow_enable_count * 6], &model_inputs[variable_set.model_index * 6 + 3], sizeof(float) * 3);
+                                        memcpy(&temp_model_inputs[flow_enable_count * 6 + 3], &model_inputs[variable_set.model_index * 6], sizeof(float) * 3);
+                                    }
                                     variable_set.model_index = flow_enable_count;
                                     variable_set.enable = true;
                                     flow_enable_count++;

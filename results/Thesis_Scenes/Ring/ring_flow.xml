@@ -18,6 +18,7 @@
     <default name="visnet_threshold"                value="0.4"/>
     <default name="rmax"                            value="1.5"/>
     <default name="noise_std"                       value="0.01"/>
+    <default name="photon_mode"                     value="true"/>
 
     <default name="caustics_bounces"                value="1"/>
 
@@ -36,6 +37,7 @@
         <float   name="visnet_threshold"         value="$visnet_threshold"/>
         <float   name="rmax"                     value="$rmax"/>
         <float   name="noise_std"                value="$noise_std"/>
+        <boolean   name="photon_mode"                value="$photon_mode"/>
 
     </integrator>
 

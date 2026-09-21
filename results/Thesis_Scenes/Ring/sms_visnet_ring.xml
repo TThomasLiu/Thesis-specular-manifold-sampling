@@ -106,8 +106,8 @@
             <rotate x="0.0" y="1.0" z="0.0" angle="$light_angle"/>
         </transform>
     </shape>
-<!-- 
-    <emitter type="point">
+
+    <!-- <emitter type="point">
         <spectrum name="intensity" value="50"/>
         <point name="position" value="-1.8, 1, 0"/>
         <boolean name="caustic_emitter_multi" value="true"/>
