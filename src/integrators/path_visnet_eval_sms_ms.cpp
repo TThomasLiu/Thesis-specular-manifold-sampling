@@ -55,12 +55,12 @@ NAMESPACE_BEGIN(mitsuba)
  *
  */
 template <typename Float, typename Spectrum>
-class VisnetMultiScatterSMSPathIntegrator : public MonteCarloIntegrator<Float, Spectrum> {
+class VisnetEvalMultiScatterSMSPathIntegrator : public MonteCarloIntegrator<Float, Spectrum> {
 public:
     MTS_IMPORT_BASE(MonteCarloIntegrator, m_max_depth, m_rr_depth, m_block_size, m_samples_per_pass, m_timeout, m_hide_emitters, m_glint_diff_scale_factor_clamp, should_stop, m_render_timer)
     MTS_IMPORT_TYPES(Scene, Sampler, Sensor, Emitter, EmitterPtr, BSDF, BSDFPtr, ShapePtr, Medium, ImageBlock, Film)
     using SpecularManifold = SpecularManifold<Float, Spectrum>;
-    using VisnetSpecularManifoldMultiScatter = VisnetSpecularManifoldMultiScatter<Float, Spectrum>;
+    using VisnetEvalSpecularManifoldMultiScatter = VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>;
     using MonteCarloIntegrator = MonteCarloIntegrator<Float, Spectrum>;
     using EmitterInteraction = EmitterInteraction<Float, Spectrum>;
 
@@ -207,11 +207,11 @@ protected:
         }
     };
 
-    static inline ThreadLocal<VisnetSpecularManifoldMultiScatter> tl_manifold{};
+    static inline ThreadLocal<VisnetEvalSpecularManifoldMultiScatter> tl_manifold{};
     // static inline ThreadLocal<MNEEHelper> tl_mnee{};
 
 public:
-    VisnetMultiScatterSMSPathIntegrator(const Properties &props) : Base(props) {
+    VisnetEvalMultiScatterSMSPathIntegrator(const Properties &props) : Base(props) {
         m_sms_config = SMSConfig();
         m_sms_config.biased                 = props.bool_("biased", false);
         m_sms_config.twostage               = props.bool_("twostage", false);
@@ -257,7 +257,7 @@ public:
 
         // bool result = MonteCarloIntegrator::render(scene, sensor);
         bool result = sequential_block_render(scene, sensor);
-        VisnetSpecularManifoldMultiScatter::print_statistics();
+        VisnetEvalSpecularManifoldMultiScatter::print_statistics();
         return result;
     }
 
@@ -276,7 +276,7 @@ public:
     // =============================================================
 
     std::string to_string() const override {
-        return tfm::format("VisnetMultiScatterSMSPathIntegrator[\n"
+        return tfm::format("VisnetEvalMultiScatterSMSPathIntegrator[\n"
             "  max_depth = %i,\n"
             "  rr_depth = %i\n"
             "]", m_max_depth, m_rr_depth);
@@ -297,7 +297,7 @@ protected:
     ScalarTransform4f m_to_model;
 
     // sample
-    void bounce_step(VisnetSpecularManifoldMultiScatter & mf, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene, const bool visnet_enable) const {
+    void bounce_step(VisnetEvalSpecularManifoldMultiScatter & mf, WaveVariables& variable_set, int depth,  const Medium *medium, const Scene *scene, const bool visnet_enable) const {
         if(!variable_set.active){
             return;
         }
@@ -350,7 +350,7 @@ protected:
 
         if (variable_set.si.shape->is_caustic_receiver() && !on_caustic_caster &&
             (m_max_depth < 0 || depth + m_sms_config.bounces < m_max_depth)) {
-            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.test, variable_set.si, variable_set.sampler, variable_set.ei, !visnet_enable || variable_set.enable) * variable_set.sample_weight;
+            variable_set.result += variable_set.throughput * mf.specular_manifold_sampling(variable_set.test, variable_set.si, variable_set.sampler, variable_set.ei, variable_set.enable);
         }
 
         // --------------------- Emitter sampling ---------------------
@@ -456,7 +456,7 @@ protected:
             //         from rough BSDFs. This could be added as well here. To
             //         support the rough case properly, the sampled half-vectors
             //         of specular paths to be tested with MNEE would need to be
-            //         passed to the VisnetSpecularManifoldMultiScatter datastructure
+            //         passed to the VisnetEvalSpecularManifoldMultiScatter datastructure
             //         somehow. */
 
             //     ShapePtr specular_shape = mnee.specular_shapes[0];
@@ -660,7 +660,7 @@ protected:
                         ScopedSetThreadEnvironment set_env(env);
                         scoped_flush_denormals flush_denormals(true);
                         
-                        auto &mf = (VisnetSpecularManifoldMultiScatter &)tl_manifold;
+                        auto &mf = (VisnetEvalSpecularManifoldMultiScatter &)tl_manifold;
                         mf.init(scene, m_sms_config);
                         // auto &mnee = (MNEEHelper &)tl_mnee;
                         // mnee.init(scene, m_sms_config);
@@ -672,16 +672,16 @@ protected:
                                     variable_set.enable = false;
                                 }else{
                                     variable_set.enable = model_outputs[variable_set.model_index];
-                                    if(!variable_set.enable){
-                                        // RR
-                                        float rr = variable_set.sampler->next_1d();
-                                        if (rr <= m_visnet_sms_config.visnet_rr_threshold){
-                                            variable_set.enable = true;
-                                            variable_set.sample_weight = 1.f / m_visnet_sms_config.visnet_rr_threshold;
-                                        }
-                                    }else{
-                                        variable_set.sample_weight = 1.f;
-                                    }
+                                    // if(!variable_set.enable){
+                                    //     // RR
+                                    //     float rr = variable_set.sampler->next_1d();
+                                    //     if (rr <= m_visnet_sms_config.visnet_rr_threshold){
+                                    //         variable_set.enable = true;
+                                    //         variable_set.sample_weight = 1.f / m_visnet_sms_config.visnet_rr_threshold;
+                                    //     }
+                                    // }else{
+                                    //     variable_set.sample_weight = 1.f;
+                                    // }
                                 }
                             }
                             bounce_step(mf, variable_set, depth, sensor->medium(), scene, visnet_enable);
@@ -865,6 +865,6 @@ protected:
     }
 };
 
-MTS_IMPLEMENT_CLASS_VARIANT(VisnetMultiScatterSMSPathIntegrator, MonteCarloIntegrator)
-MTS_EXPORT_PLUGIN(VisnetMultiScatterSMSPathIntegrator, "Visnet Multi-Bounce SMS Path Tracer integrator");
+MTS_IMPLEMENT_CLASS_VARIANT(VisnetEvalMultiScatterSMSPathIntegrator, MonteCarloIntegrator)
+MTS_EXPORT_PLUGIN(VisnetEvalMultiScatterSMSPathIntegrator, "Visnet Eval Multi-Bounce SMS Path Tracer integrator");
 NAMESPACE_END(mitsuba)

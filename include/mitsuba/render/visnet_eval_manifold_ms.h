@@ -13,7 +13,7 @@ struct VisnetSMSConfig {
 
 /// Datastructure handling specular manifold sampling in the multi-bounce case.
 template <typename Float, typename Spectrum>
-class MTS_EXPORT_RENDER VisnetSpecularManifoldMultiScatter /* : public Object */ {
+class MTS_EXPORT_RENDER VisnetEvalSpecularManifoldMultiScatter /* : public Object */ {
 public:
     MTS_IMPORT_TYPES(BSDF, Sampler, Scene, Shape)
     using BSDFPtr            = typename RenderAliases::BSDFPtr;
@@ -23,8 +23,8 @@ public:
     using SpecularManifold   = SpecularManifold<Float, Spectrum>;
 
     /// Initialize data structure
-    VisnetSpecularManifoldMultiScatter() {}
-    ~VisnetSpecularManifoldMultiScatter() {}
+    VisnetEvalSpecularManifoldMultiScatter() {}
+    ~VisnetEvalSpecularManifoldMultiScatter() {}
 
     // ========================================================================
     //           Main functionality, to be called from integrators
@@ -158,8 +158,11 @@ public:
     static void print_statistics();
 
 protected:
-    static std::atomic<int> stats_external_reject;
-    static std::atomic<int> stats_external_accept;
+    static std::atomic<int> stats_visnet_TP;
+    static std::atomic<int> stats_visnet_FP;
+    static std::atomic<int> stats_visnet_TN;
+    static std::atomic<int> stats_visnet_FN;
+
     static std::atomic<int> stats_solver_failed;
     static std::atomic<int> stats_solver_succeeded;
     static std::atomic<int> stats_bernoulli_trial_calls;

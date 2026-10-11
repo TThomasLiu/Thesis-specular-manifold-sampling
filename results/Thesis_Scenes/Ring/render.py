@@ -99,24 +99,24 @@ cmd += "-Dblock_size={} ".format(256)
 # run_cmd(cmd, name)
 
 
-name = "ring_visnet_eval_test"
-cmd = "mitsuba "
-cmd += "sms_visnet_eval_ring.xml "
-cmd += "-o results/{}.exr ".format(name)
-# cmd += "-Dspp=999999999 "
-cmd += "-Dspp=3 "
-cmd += "-Dsamples_per_pass=1 "
-cmd += "-Dtimeout={} ".format(timeout)
-cmd += "-Dcaustics_biased=false "
+# visnet evaluation, test on different threshold values
+thresholds = [0.1, 0.2, 0.3, 0.4, 0.5]
+for threshold in thresholds:
+    name = "ring_visnet_eval_test_{}".format(threshold)
+    cmd = "mitsuba "
+    cmd += "sms_visnet_eval_ring.xml "
+    cmd += "-o results/{}.exr ".format(name)
+    # cmd += "-Dspp=999999999 "
+    cmd += "-Dspp=8 "
+    cmd += "-Dsamples_per_pass=1 "
+    cmd += "-Dtimeout={} ".format(timeout)
+    cmd += "-Dcaustics_biased=true "
+    cmd += "-Dcaustics_max_trials=16 "
 
-cmd += "-Dcaustics_biased=true "
-cmd += "-Dcaustics_max_trials=16 "
+    cmd += "-Dmodel_device=gpu "
+    cmd += "-Dvisnet_enable=true "
+    cmd += "-Dvisnet_threshold={} ".format(threshold)
 
-cmd += "-Dmodel_device=gpu "
-cmd += "-Dvisnet_enable=true "
-cmd += "-Dvisnet_rr_threshold=0.1 "
-cmd += "-Dvisnet_threshold=0.3 "
-
-cmd += "-Dblock_size={} ".format(block_size)
-print(cmd)
-run_cmd(cmd, name)
+    cmd += "-Dblock_size={} ".format(block_size)
+    print(cmd)
+    run_cmd(cmd, name)

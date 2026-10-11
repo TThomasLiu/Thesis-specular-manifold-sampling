@@ -11,16 +11,19 @@ inline void update_max(std::atomic<T> & atom, const T val) {
   for(T atom_val=atom; atom_val < val && !atom.compare_exchange_weak(atom_val, val, std::memory_order_relaxed););
 }
 
-MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_external_reject(0);
-MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_external_accept(0);
-MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_failed(0);
-MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_succeeded(0);
-MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_calls(0);
-MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations(0);
-MTS_VARIANT std::atomic<int> VisnetSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations_max(0);
+MTS_VARIANT std::atomic<int> VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::stats_visnet_TP(0);
+MTS_VARIANT std::atomic<int> VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::stats_visnet_FP(0);
+MTS_VARIANT std::atomic<int> VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::stats_visnet_TN(0);
+MTS_VARIANT std::atomic<int> VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::stats_visnet_FN(0);
+
+MTS_VARIANT std::atomic<int> VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_failed(0);
+MTS_VARIANT std::atomic<int> VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::stats_solver_succeeded(0);
+MTS_VARIANT std::atomic<int> VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_calls(0);
+MTS_VARIANT std::atomic<int> VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations(0);
+MTS_VARIANT std::atomic<int> VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::stats_bernoulli_trial_iterations_max(0);
 
 MTS_VARIANT void
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
                                                     const SMSConfig &config) {
     m_scene = scene;
     m_config = config;
@@ -28,12 +31,12 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::init(const Scene *scene,
     auto shapes = m_scene->caustic_casters_multi_scatter();
     
     if(shapes.size() > 1){
-        throw std::runtime_error("VisnetSpecularManifoldMultiScatter: Only one specular shape is currently supported for multi-bounce SMS.");
+        throw std::runtime_error("VisnetEvalSpecularManifoldMultiScatter: Only one specular shape is currently supported for multi-bounce SMS.");
     }
 }
 
 MTS_VARIANT Spectrum
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(float& test_output, const SurfaceInteraction3f &si,
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(float& test_output, const SurfaceInteraction3f &si,
                                                                           ref<Sampler> sampler, const EmitterInteraction& ei, const int external_enable) {
     ScopedPhase scope_phase(ProfilerPhase::SMSCaustics);
 
@@ -84,12 +87,6 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(
     if (unlikely(!si.is_valid())) {
         return 0.f;
     }
-
-    if(!external_enable){
-        stats_external_reject++;
-        return 0.f;
-    }
-    stats_external_accept++;
 
     // Sample emitter interaction
     // EmitterInteraction ei = SpecularManifold::sample_emitter_interaction(si, m_scene->caustic_emitters_multi_scatter(), sampler);
@@ -214,6 +211,17 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(
                 Spectrum specular_val = evaluate_path_contribution(si, ei);
                 value += bsdf_val * specular_val;
             }
+
+            // confusion matix 
+            if(solutions.size() == 0){
+                // GT : False
+                if(external_enable) stats_visnet_FP++;
+                else stats_visnet_TN++;
+            }else{
+                // GT : True
+                if(external_enable) stats_visnet_TP++;
+                else stats_visnet_FN++;
+            }
         }
 
         result += value / m_offset_normals_pdf;
@@ -221,8 +229,8 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_manifold_sampling(
     return result;
 }
 
-MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::sample_path(const ShapePtr shape,
+MTS_VARIANT typename VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::sample_path(const ShapePtr shape,
                                                            const SurfaceInteraction3f &si,
                                                            const EmitterInteraction &ei,
                                                            ref<Sampler> sampler,
@@ -248,7 +256,7 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::sample_path(const ShapePtr 
 }
 
 MTS_VARIANT Spectrum
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::evaluate_path_contribution(const SurfaceInteraction3f &si,
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::evaluate_path_contribution(const SurfaceInteraction3f &si,
                                                                           const EmitterInteraction &ei_) {
     ManifoldVertex &vtx_last = m_current_path[m_current_path.size() - 1];
 
@@ -298,8 +306,8 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::evaluate_path_contribution(
     return path_throughput;
 }
 
-MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const ShapePtr shape,
+MTS_VARIANT typename VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const ShapePtr shape,
                                                                     const SurfaceInteraction3f &si_,
                                                                     const EmitterInteraction &ei,
                                                                     ref<Sampler> sampler,
@@ -429,8 +437,8 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::sample_seed_path(const Shap
     return true;
 }
 
-MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::newton_solver(const SurfaceInteraction3f &si,
+MTS_VARIANT typename VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::newton_solver(const SurfaceInteraction3f &si,
                                                                  const EmitterInteraction &ei) {
     // Newton iterations..
     bool success = false;
@@ -519,8 +527,8 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::newton_solver(const Surface
     return true;
 }
 
-MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_halfvector(const Point3f &x0,
+MTS_VARIANT typename VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_halfvector(const Point3f &x0,
                                                                            const EmitterInteraction &ei) {
     std::vector<ManifoldVertex> &v = m_current_path;
 
@@ -650,8 +658,8 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_halfvector(con
     return true;
 }
 
-MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_anglediff(const Point3f &x0,
+MTS_VARIANT typename VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_anglediff(const Point3f &x0,
                                                                       const EmitterInteraction &ei) {
     std::vector<ManifoldVertex> &v = m_current_path;
     bool success = true;
@@ -878,8 +886,8 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::compute_step_anglediff(cons
     return true;
 }
 
-MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::reproject(const SurfaceInteraction3f &si_) {
+MTS_VARIANT typename VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::reproject(const SurfaceInteraction3f &si_) {
     m_proposed_path.clear();
     SurfaceInteraction3f si(si_);
 
@@ -940,7 +948,7 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::reproject(const SurfaceInte
 }
 
 MTS_VARIANT Spectrum
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_reflectance(const SurfaceInteraction3f &si_,
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::specular_reflectance(const SurfaceInteraction3f &si_,
                                                                     const EmitterInteraction &ei) const {
     if (m_current_path.size() == 0) return 0.f;
 
@@ -1045,7 +1053,7 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::specular_reflectance(const 
 }
 
 MTS_VARIANT Float
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::geometric_term(const ManifoldVertex &vx,
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::geometric_term(const ManifoldVertex &vx,
                                                               const ManifoldVertex &vy) {
     // First assemble full path, including all endpoints (use m_proposed_path as buffer here)
     m_proposed_path.clear();
@@ -1211,8 +1219,8 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::geometric_term(const Manifo
     }
 }
 
-MTS_VARIANT typename VisnetSpecularManifoldMultiScatter<Float, Spectrum>::Mask
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_step(std::vector<ManifoldVertex> &v) {
+MTS_VARIANT typename VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::Mask
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_step(std::vector<ManifoldVertex> &v) {
     // Solve block tri-diagonal linear system with full RHS vector
 
     // From "The Natural-Constraint Representation of the Path Space for Efficient Light Transport Simulation"
@@ -1254,7 +1262,7 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_step(std
 }
 
 MTS_VARIANT Float
-VisnetSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_geo(std::vector<ManifoldVertex> &v) {
+VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_geo(std::vector<ManifoldVertex> &v) {
     // Solve block tri-diagonal linear system with RHS vector where only last element in non-zero
 
     // Procedure as outlined in original "Manifold Exploration" by Jakob and Marschner 2012.
@@ -1289,7 +1297,7 @@ VisnetSpecularManifoldMultiScatter<Float, Spectrum>::invert_tridiagonal_geo(std:
     return abs(det(-v[0].inv_lambda));
 }
 
-MTS_VARIANT void VisnetSpecularManifoldMultiScatter<Float, Spectrum>::print_statistics() {
+MTS_VARIANT void VisnetEvalSpecularManifoldMultiScatter<Float, Spectrum>::print_statistics() {
     Float solver_success_ratio = Float(stats_solver_succeeded) / (stats_solver_succeeded + stats_solver_failed),
           solver_fail_ratio    = Float(stats_solver_failed)    / (stats_solver_succeeded + stats_solver_failed);
 
@@ -1297,26 +1305,48 @@ MTS_VARIANT void VisnetSpecularManifoldMultiScatter<Float, Spectrum>::print_stat
     std::cout << "----------------------------------------------------------" << std::endl;
     std::cout << "    Specular Manifold Sampling Statistics" << std::endl;
     std::cout << "----------------------------------------------------------" << std::endl;
-    std::cout << std::setw(25) << std::left << "External rejects: "
-              << std::setw(10) << std::right << stats_external_reject << " "
-              << std::setw(8) << "(" << 100*Float(stats_external_reject) / (stats_external_accept + stats_external_reject) << "%)" << std::endl;
     std::cout << std::setw(25) << std::left << "Solver succeeded: "
-              << std::setw(10) << std::right << stats_solver_succeeded << " "
-              << std::setw(8) << "(" << 100*solver_success_ratio << "%)" << std::endl;
+    << std::setw(10) << std::right << stats_solver_succeeded << " "
+    << std::setw(8) << "(" << 100*solver_success_ratio << "%)" << std::endl;
     std::cout << std::setw(25) << std::left << "Solver failed: "
-              << std::setw(10) << std::right << stats_solver_failed << " "
-              << std::setw(8) << "(" << 100*solver_fail_ratio << "%)" << std::endl;
+    << std::setw(10) << std::right << stats_solver_failed << " "
+    << std::setw(8) << "(" << 100*solver_fail_ratio << "%)" << std::endl;
     std::cout << std::endl;
-
+    
     Float stats_booth_avg_iterations = Float(stats_bernoulli_trial_iterations) / stats_bernoulli_trial_calls;
     std::cout << std::setw(25) << std::left << "avg. Booth iterations: "
-              << std::setw(10) << std::right << stats_booth_avg_iterations << std::endl;
+    << std::setw(10) << std::right << stats_booth_avg_iterations << std::endl;
     std::cout << std::setw(25) << std::left << "max. Booth iterations: "
-              << std::setw(10) << std::right << stats_bernoulli_trial_iterations_max << std::endl;
+    << std::setw(10) << std::right << stats_bernoulli_trial_iterations_max << std::endl;
     std::cout << std::endl;
+    std::cout << "----------------------------------------------------------" << std::endl;
+    std::cout << "    Visnet Evaluation Statistics" << std::endl;
+    std::cout << "----------------------------------------------------------" << std::endl;
+    std::cout<< std::setw(25) << std::left << "GT False: "
+    << std::setw(10) << std::right << Float(stats_visnet_TN + stats_visnet_FP) << std::endl;
+    std::cout << std::setw(8) << "(" << 100*Float(stats_visnet_TN + stats_visnet_FP) / (stats_visnet_TP + stats_visnet_FP + stats_visnet_TN + stats_visnet_FN) << "%)" << std::endl;
+    std::cout << std::setw(25) << std::left << "GT True: "
+    << std::setw(10) << std::right << Float(stats_visnet_TP + stats_visnet_FN) << std::endl;
+    std::cout << std::setw(8) << "(" << 100*Float(stats_visnet_TP + stats_visnet_FN) / (stats_visnet_TP + stats_visnet_FP + stats_visnet_TN + stats_visnet_FN) << "%)" << std::endl;
+    std::cout << std::endl;
+    // std::cout << std::setw(25) << std::left << "True Positives: "
+    //           << std::setw(10) << std::right << stats_visnet_TP << std::endl;
+    // std::cout << std::setw(25) << std::left << "False Positives: "
+    //           << std::setw(10) << std::right << stats_visnet_FP << std::endl;
+    // std::cout << std::setw(25) << std::left << "True Negatives: "
+    //           << std::setw(10) << std::right << stats_visnet_TN << std::endl;
+    // std::cout << std::setw(25) << std::left << "False Negatives: "
+    //           << std::setw(10) << std::right << stats_visnet_FN << std::endl;
+    std::cout << "----------------------------------------------------------" << std::endl;
+    std::cout << std::setw(25) << std::left << "Precision: "
+              << std::setw(10) << std::right << (Float(stats_visnet_TP) / (stats_visnet_TP + stats_visnet_FP)) << std::endl;
+    std::cout << std::setw(25) << std::left << "Recall: "
+              << std::setw(10) << std::right << (Float(stats_visnet_TP) / (stats_visnet_TP + stats_visnet_FN)) << std::endl;
+    std::cout << std::setw(25) << std::left << "Accuracy: "
+              << std::setw(10) << std::right << (Float(stats_visnet_TP + stats_visnet_TN) / (stats_visnet_TP + stats_visnet_FP + stats_visnet_TN + stats_visnet_FN)) << std::endl;
     std::cout << "----------------------------------------------------------" << std::endl;
     std::cout << std::endl;
 }
 
-MTS_INSTANTIATE_CLASS(VisnetSpecularManifoldMultiScatter)
+MTS_INSTANTIATE_CLASS(VisnetEvalSpecularManifoldMultiScatter)
 NAMESPACE_END(mitsuba)
