@@ -15,6 +15,7 @@ add_plugin(path_filtered_ss path_filtered_ss.cpp)
 add_plugin(path_sms_ms path_sms_ms.cpp)
 add_plugin(path_flow_ms path_flow_ms.cpp)
 add_plugin(path_visnet_sms_ms path_visnet_sms_ms.cpp)
+add_plugin(path_visnet_eval_sms_ms path_visnet_eval_sms_ms.cpp)
 add_plugin(path_filtered_ms path_filtered_ms.cpp)
 
 add_plugin(path_sms_glints path_sms_glints.cpp)
